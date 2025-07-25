@@ -95,7 +95,7 @@ Every cage has a certain set of combinations that could be valid solutions. For 
 ```
 .___.___.___.___.
 | 6x    | 9+    |
-'---'---'---'---'
+'---'---'---'---' 
 ```
 The cage combinations solver will go through every pair of two cages, including this pair. It will check which combinations of digits can satisfy both cages without contradicting each other. If the 6x cage contains 1x6 then the 9+ cage cannot contain a 6, so it must be 4+5. If the 6x cage contains 2x3 then the 9+ cage cannot contain a 3, so again it must be 4+5. This allows us to eliminate 3+6 and 6+3 as potential solutions for this cage.
 
