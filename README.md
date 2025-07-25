@@ -1,5 +1,5 @@
 # KenKen Solver
-A simple webpage for learning scripts, principally for Geoguessr
+A KenKen/Calcudoku solver & rating program
 
 [https://billabob.github.io/kenkensolver/kenkensolver.html](https://billabob.github.io/kenkensolver/kenkensolver.html)
 
