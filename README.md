@@ -1,7 +1,7 @@
 # KenKen Solver
 A simple webpage for learning scripts, principally for Geoguessr
 
-[https://billabob.github.io/KS/kenkensolver.html](https://billabob.github.io/KS/kenkensolver.html)
+[https://billabob.github.io/kenkensolver/kenkensolver.html](https://billabob.github.io/kenkensolver/kenkensolver.html)
 
 ## How to use:
 
