@@ -1,0 +1,2872 @@
+<html>
+	<head>
+		<style>
+			body {
+				<!-- min-height: 400px; -->
+				<!-- max-height: 50% -->
+				position: relative;
+				vertical-align:middle;
+			}
+			.container {
+				background: #202020;
+				display: inline-block;
+				border: 1px solid black;
+			}
+
+			.grid {
+				display: grid;
+				grid-template-columns: repeat(3, 200px);
+				grid-template-rows: repeat(3, 200px);
+				font-size: 3rem;
+			}
+			
+			.cell {
+				position: relative;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				font-weight: bold;
+				background: white;
+				overflow: hidden;
+				color: purple;
+			}
+			
+			.cagenote {
+				position: absolute;
+				top: 2px;
+				left: 2px;
+				border: none;
+				background: none;
+				outline: none;
+				width: 50%;
+				text-align: left;
+				color: black;
+				font-size: 0.5em;
+			}
+			
+			.candidatetext {
+				word-wrap: normal;
+				font-size: 0.35em;
+				white-space: pre;
+				line-height:1.1em;
+			}
+
+			.edge, .corner {
+				position: absolute;
+				background: black;
+			}
+
+			.edge {
+				z-index: 2;
+			}
+			
+			.top, .bottom {
+				left: 0;
+				right: 0;
+				height: 5px;
+			}
+
+			.bottom { bottom: 0; }
+			.top { top: 0; }
+
+			.left, .right {
+				top: 0;
+				bottom: 0;
+				width: 5px;
+			}
+
+			.right { right: 0; }
+			.left { left: 0; }
+
+			/* Corner */
+			.corner {
+				width: 5px;
+				height: 5px;
+				bottom: 0;
+				right: 0;
+			}
+			
+			.hide {
+				opacity: 0.1;
+			}
+			.split {
+				height: 100%;
+				width: 50%;
+				position: fixed;
+				z-index: 1;
+				top: 0;
+				overflow-x: hidden;
+				padding-top: 20px;
+				padding-left: 20px;
+			}
+			
+			.left {
+				left: 0;
+			}
+			
+			.right {
+				right: 0;
+			}
+			.centered {
+				text-align: center; 
+				line-height:0.9;
+				color:white;
+			}
+		</style>
+	</head>
+
+	<body style="background-color:#202020">
+		<div class="split left">
+			<div id="cont" class="centered">
+				<div id="thegrid" class="grid">
+					<div class="cell" id="cell1">
+						<div class="corner top-left"></div>
+						<div class="corner top-right"></div>
+						<div class="corner bottom-left"></div>
+						<div class="corner bottom-right"></div>
+					</div>
+					<!-- Repeat for other cells -->
+				</div>
+			</div>
+		</div>
+		<div class="split right">
+			<div class="centered" id="solverarea">
+				<!--<h5>Enter width of grid: <input size="15" id="newWidth"> <input type="submit" onclick="updateGridSize()" value="Update"></input></h5>-->
+				<input type="submit" onclick="toggleBatch(true)" value="Batch mode"></input>
+				<h5>Enter puzzle import string:<br><input size="45" id="import" value="9:b3a_3a_10a_a_a_b_a_a_a_10a_3abbdbb_a_a_10a_3aa_b_aa_3a_10a_a_b3,a21m60a25s6a11s4a13a8a8a2a9a11a24a13a25s3a17a2a3s1a13s1a11a26a1m16a6a12a7a25s1m378m3"> 
+				<input type="submit" onclick="importString()" value="Import"></input></h5>
+				<input type="submit" onclick="swiki()" value="Open in Sudokuwiki solver"></input>
+				<input type="submit" onclick="solver(0)" value="Show candidates"></input><br><br>
+				<!--<input type="submit" onclick="solver(1,true)" value="Hint"></input>-->
+				<input type="submit" onclick="solver(1)" value="Step"></input>
+				<input type="submit" onclick="solver(100)" value="x100"></input>
+				<input type="submit" onclick="solver()" value="Solve"></input><br>
+				<h5>Solve log:</h5>
+				<input type="checkbox" id="detailedlogs"><label for="detailedlogs">Detailed logs</label>
+				<input type="checkbox" id="lognakedsingles" checked><label for="lognakedsingles">Log naked singles</label><br>
+				<textarea id="solvelog" name="solvelog" rows="30" cols="50">💸</textarea><br><br>
+			</div>
+			<div class="centered" id="batchrunarea" hidden>
+				<input type="submit" onclick="toggleBatch(false)" value="Back to solver"></input><br><br>
+				<textarea id="batchinput" name="batchinput" rows="5" cols="50">Paste JSON here</textarea>
+				<h5>Or upload file:</h5>
+				<input id="batchinputfile" type="file"/>
+				<h5>Mode: <input size="3" id="batchmodeinput" value="b">
+				<input type="checkbox" id="batchsavetofile"><label for="batchsavetofile">Save output to file</label>
+				<input type="submit" onclick="runBatchFromPage()" value="Run"></input></h5>
+				<h5>Batch output:</h5>
+				<textarea id="batchlog" name="batchlog" rows="25" cols="50">🦇</textarea><br><br>
+			</div>
+		</div>
+		<script>
+			let important="🍪 🍫 🍬 🍭 🍰 🥤 🍉 🥐 🚴‍♀️"
+			
+			let developingmode=false
+		
+			let testgrids = {
+			Four:[
+				"4:aba_3b_aa__aa_,d2s1m12m12s1a8",
+				"4:a__a_aa__a_3ac,a6a8s0m2s0m12a2", //rule of 10 example
+				"4:_a_7a4_a3,a6m3a5s1d2m3s1d2" //claiming candidates example
+			],
+			Nine:[
+				"9:a_a3_a_7aa_4a__a_a_4aa_a__aa_a_a_3aa_3a__aba_aa_3aa_3a_6aa_a_a3_aa_a_4a_a_baab,m7a19s1m36m48d3s5m200m126d4d3m24m768s5m63s6s1a7a7s5a8d4a14s4s4d2s2s1m378a17a9m12a15a10a9",
+				"9:_ba_a_a__a__aa_4a_5a_3a_4aa_3a_a_7b__a_ba3_b_aa_4aa_3a_a3__b_aba3_a_aa_3a3__,s1a19m192a18d2m84s2m45s3s1d3a10s3m24d3m24a10s2d3a7m672a14d4a20s2d4d2a8m16m42a10m70s1s1d2"
+			],
+			Hardest:["9:b3a_3a_10a_a_a_b_a_a_a_10a_3abbdbb_a_a_10a_3aa_b_aa_3a_10a_a_b3,a21m60a25s6a11s4a13a8a8a2a9a11a24a13a25s3a17a2a3s1a13s1a11a26a1m16a6a12a7a25s1m378m3"],
+			HiddenPairs:["6:ba_3a__a__a_abababa_a__a_4a__a_baa,m60d3s2a11a4m120m90m6m30s1a14m120a7"],
+			XWing:["6:a3_abab__aa__a_a_a_b_6b__aa__b__a,a7m10m90a10s1m20s4m30a14d3s1a10a10s1"],
+			Swordfish:["6:__a_4a_3ba3_3aa_bab_3aa__abab_b,m60m20s3m60d2s3m288m18m30a15a9d6d2"],
+			RuleOf21:[
+				"4:_a_a_aac_6aa,m12s1d2a5d2m9s2",
+				"6:_3a_3a__aa_10acacaa_a_3a_3aa_a_,s1m12s2d2m6a8d2d2s1s1m6s1m6a9d3a7a11", //parity
+				"4:_aa_4bb__a4,a12a3a5s1a10a5" //two cages overlapping
+			],
+			Easy:[
+				"6:aa_b_4aa_aa_a3_a_a4__a_aab_3a_4,d2a15d3s1m90s4m48a8a7d2s2m18s4a7m6",
+				"6:a_aa_3a_13a_a_3a_3a6_a5,m24m4a5s2d2s4s2m15a5m24a7a5d3s2s1d2d2m4", //hidden single
+				"6:__aa_4a_4aa_aa_a4b_4a_3a_3a_3ab,m10m5a8a7a7s2s4d3a7m12s1m15s2d2d2s1d2",
+				"6:a_a_4a_3aa__a_aa_a_b__a__a3b_4aa_b,d2d3d2a16m48s1m6m50s3a15a6s1m24s4d2",
+				"6:a3_a_6a__b_aa_a_a_aa_a_aa_a__a_3a_a,s2a5a8d2m4s1m15a9d2d3s3s3m432a7m3s1d2",
+				"6:a_a_3a_5a_4a_3a_aa_aa__aa_3aa_ba3,a8d2d3m24d2s3a6a7s2m24s4d3m4m30s2m6a7",
+				"6:_a_aa_4a_5a3_a5_a_4a3__a_3a_a,d3m30s2m6d2a5s4s2a6m30a7d2s3m6m24a9s4",
+				"6:a__a_3a_b_10aa__aa_a3_aa_a_3b_aa,m6a5d3m20a9m6m24a8d2s1s2a5s1m30d2s4s2",
+				"6:__a_3a__a_3a_3a_a5b_9a4_a3,m24a5d3s4m20a14a7s1d2d2s3a8m3d2m72s1d2",
+				"6:a_a_3a_5a_12aa_aa_baa_a7,d3s2s1m6m5a8a9a5s1a5s2m6d3m8a6s2m120"
+			],
+			Hard:[
+				"6:a3_a_3b_a_3a__a5_a_10a_a3b_,s3s3a7m6d2d3a17m72a7m6s3d2a9m12d2s1",
+				"6:_4a_3ba_3a_6a_c_aa_aa__b_a__a4_,d2d3m12s2s4m30a9d3a9a10s2m10a5s1m96d3",
+				"6:abaa_3aa_a_5a_3a_aa_aa_3a_3a5__,m6m40d2d2s4m48a8d2a7a7a13s3s3d2m12s1",
+				"6:_b_12aa_aa_a6_3a_3aaba4,s1m12m10a9a8d2s2d3d2s1m360d3s2a9a5m6",
+				"6:_aa_a_5a_3a__a__a5_aa_a__a__a__baa,d3d2m40s1a3m20s2a9d3a5d3a7m15s2m36s3",
+				"6:a3_3b_3aa__a_3a__a__aa_3a_3a_a_aa_aa,m20a9d2a11d3s1s2m10a6m12a8s3s1d2d2m12s3",
+				"6:_a_aa_3b_6a_3a_3aa_4a__ab_ca3b,s2d3s2m40m6d2s2a14a7m8m15m90a7s1a8",
+				"6:__b_13a_3b_ababa4_a_3a__aa__,d2d2a15s4d2a7d3a8s3m12m6m12s2a7m90d3s2",
+				"6:_a_7a_a_a__b__aa_aa__a_3a__a_aa_caa,m24a5d2s2s4a17d2s2m6a5s2m12m36s2m12a6",
+				"6:a3b_aa_3a_6a__a3_3a_4a__ca4_,a5a7a15m30m30s1a6s1s2d3m360d2s4m90d2"
+			],
+			Unreasonable:[
+				"6:_3a_5a_3a_3a_4a3__b_3ba_aa_a5,m6a9m30a6d3m6s2a7d3s1d2s3m6m6a9s1s1", //original sample
+				"6:bca__a_7a_3ba__a_4a_aa__a7,m72m10a5a16d2s1s3s1m10s2a5m90s2a6",
+				"6:_a_10a__a_aa__a5b__a__a_3a_a4,s1d3m6s2m6a11s1d2a5m6d2a7m12a8s1s3d2",
+				"6:__a__a__aa_aa_5a__aa__b__a_3b__ba_a3,m6m30m24d2s2a7a7d2d2s2s4s3s2a5a9m120",
+				"6:__aa__a_a_b__b_a3_aa_a_4aa__a_5aa_a,d2s1d3s1m108a7a10m15s3a9m12a7m48d3s1d2",
+				"6:_3a_6a__a_4a_3b_aab_3a_a_aa_acaa,s1d2a5d2s1s1s1a7m6m6m50d2a9d3a9m24",
+				"6:ba_a_3a__a_a__aa_a3_a_3a_a__a_3a__aa__,m30s2s1d3s2a9a6m8a8m12s1a9d3s3d2m6d2",
+				"6:_a_13a__a_3a_3aa__a_3a_bababc,m6s2s1a8d2a7m6s2m6m12m360a5a7s1s3a5d2", //requires depth=4
+				"6:_b_10a_aa__aa_a6_a_aa__a_3a__a,m6m30d2s2a9s2d3m12a7s2d3a8m60s4s2d3a6",
+				"6:a_a_3a_3a_3aa__b__ab__a5_3a_4aa__,s1a7m6m12m24s3m12m6s1a5a11a6s1s2d3d3a7",
+				"6:_aa_4b__a__a__abab_a_ba3b_6baa,s1s3a12m12m60d2m120d2a9a6a10m60s1", //the one i'm stuck on
+				"6:ca__a_3a_a_3a__adca_3a_5a_3aca,a18a13s5s3a7a17s1s3s1a8a3a17" //hard one from calcudoku.com
+			]}
+			var gridDimension = 6;
+			var regionSum = 21;
+			var candidateMatrixWidth = 3;
+			var consoleMode = developingmode
+			var Options = {}
+			Options.HiddenSingle=true
+			Options.CageLineReduction=true
+			Options.SubsetFish=true
+			Options.LatinSquare=true
+			Options.RegionTotals=true
+			Options.CageCombinations=true
+			Options.maxCageDepth=8
+			
+			//visual functions
+			var thegrid = document.getElementById("thegrid")
+			var gridsizeInput = document.getElementById("newWidth")
+			function updateGridSize(gridsizeX = gridsizeInput.value, gridsizeY = gridsizeX) { //this should never not be square, but just in case it's needed
+				let gridsizepx = 600/Math.max(gridsizeX,gridsizeY)
+				if(consoleMode){
+					gridsizepx = 400/Math.max(gridsizeX,gridsizeY)
+				}
+
+				// Update the grid's template columns and rows
+				thegrid.style.gridTemplateColumns = `repeat(${gridsizeX}, ${gridsizepx}px)`
+				thegrid.style.gridTemplateRows = `repeat(${gridsizeY}, ${gridsizepx}px)`
+				thegrid.style.fontSize = 25/gridsizeX+"em"
+				if(consoleMode){
+					thegrid.style.fontSize = 15/gridsizeX+"em"
+				}
+				
+				let cellsHTML = ''
+				let ct=""
+				if(gridsizeX>6){ct=' style="font-size: 0.3em"'}
+				if(gridsizeX>12){ct=' style="font-size: 0.25em"'}
+				for(let y=0;y<gridsizeY;y++){
+					for(let x=0;x<gridsizeX;x++){
+						cellsHTML+='<div class="cell" style="grid-area" id="r'+(y+1)+'c'+(x+1)+'">'
+						//if(x==0){cellsHTML+='<div class="edge left"></div>'}
+						//if(y==0){cellsHTML+='<div class="edge top"></div>'}
+						cellsHTML+='<span class="digittext"></span><span class="candidatetext"'+ct+'></span><div class="cagenote"></div><div class="edge bottom"></div><div class="edge right"></div><div class="corner bottom-right"></div></div>';
+					}
+				}
+				thegrid.innerHTML = cellsHTML
+				gridDimension=Number(gridsizeX)
+				regionSum=gridDimension*(gridDimension+1)/2
+				candidateMatrixWidth=Math.ceil(Math.sqrt(gridDimension))
+			}
+			updateGridSize(6)
+			
+			function toggleGridline(cellId, elementClass) { //shit function rewrite 
+				const cell = document.getElementById(cellId)
+				const element = cell.getElementsByClassName(elementClass)[0]
+				element.classList.toggle('hide')
+			}
+			
+			function updateCandidateDisplay(){
+				let cellsk=Object.keys(Grid.Cells)
+				for(let i=0;i<cellsk.length;i++){
+					let curc=Grid.Cells[cellsk[i]]
+					if(curc.Digit){continue}
+					let candidatestring = ""
+					for(let j=1;j<=gridDimension;j++){
+						if(j%candidateMatrixWidth==1){
+							candidatestring+="<br>"
+						}else{
+							candidatestring+="  "
+						}
+						if(curc.CandidatesHT[j]){
+							candidatestring+=j
+						}else{
+							candidatestring+='<span style="color:white">_</span>'
+						}
+					}
+					document.getElementById(cellsk[i]).getElementsByClassName("candidatetext")[0].innerHTML=candidatestring
+				}
+			}
+			
+			let detailedlogs=false
+			let logcheck=document.getElementById("detailedlogs")
+			logcheck.addEventListener("change",(event)=>{
+				detailedlogs=event.currentTarget.checked
+			})
+			
+			let lognakedsingles=true
+			let lnscheck=document.getElementById("lognakedsingles")
+			lnscheck.addEventListener("change",(event)=>{
+				lognakedsingles=event.currentTarget.checked
+			})
+			
+			let savebatchruntofile=false
+			let bstfcheck=document.getElementById("batchsavetofile")
+			bstfcheck.addEventListener("change",(event)=>{
+				savebatchruntofile=event.currentTarget.checked
+			})
+			
+			function toggleBatch(tobatch){
+				if(tobatch){
+					document.getElementById("solverarea").hidden=true
+					document.getElementById("batchrunarea").hidden=false
+				}else{
+					
+					document.getElementById("solverarea").hidden=false
+					document.getElementById("batchrunarea").hidden=true
+				}
+			}
+			
+			const CHUNK_SIZE = 1024 * 1024 * 2; // 2 MB chunks
+			
+			let difficultyTally={} //for mode m
+			let savedPuzzles=[]
+			
+			function processNDJSON(file) {
+				let offset = 0
+				let leftover = ''
+				let t=Date.now()
+				
+				function handleLine(line) {
+					if(line.trim()){
+						try{
+							let obj = JSON.parse(line)
+							//console.log(obj)
+							let objk = Object.keys(obj)[0]
+							console.log("Key: "+objk)
+							console.log("Length: "+obj[objk].length)
+							//now i think the best course of action would be to tally up difficulties and only save puzzles that are at least 4 difficulty
+							runBatch(obj,"m",false)
+						}catch(err){
+							console.error('Malformed JSON line:',err)
+						}
+					}
+				}
+				
+				function readChunk(){
+					if(offset >= file.size){
+						handleLine(leftover) //leftover line
+						console.log("finally done :D")
+						console.log("Time elapsed: "+(Date.now()-t)/1000+"s")
+						let logelement=document.getElementById("batchlog")
+						let batchinelement=document.getElementById("batchinput") //i'm just going to put the json vomit here lol IDC
+						let bdi="Difficulty	Count"
+						let dTk = Object.keys(difficultyTally)
+						for(let i=0;i<dTk.length;i++){
+							bdi+="\n"+dTk[i]+"	"+difficultyTally[dTk[i]]
+						}
+						logelement.innerHTML = bdi
+						if(savebatchruntofile){
+							download(bdi,"Batch Run difficultyTally "+Date.now()+".txt")
+							download(JSON.stringify(savedPuzzles),"Batch Run hardPuzzles "+Date.now()+".txt")
+						}else{
+							batchinelement.innerHTML = JSON.stringify(savedPuzzles)
+						}
+						return
+					}
+					
+					const slice = file.slice(offset, offset + CHUNK_SIZE)
+					const reader = new FileReader()
+					
+					reader.onload = (e) => {
+						const text = leftover + e.target.result
+						const lines = text.split('\n')
+						leftover = lines.pop() //keep last line in case it's incomplete
+
+						for (const line of lines) {
+							handleLine(line)
+							//return
+						}
+						offset += CHUNK_SIZE;
+						readChunk()
+					}
+					reader.readAsText(slice)
+				}
+				readChunk()
+			}
+			
+			function runBatchFromPage(){ //just pipe this into existing runBatch function
+				//also define a new mode, "m", which stands for multi-line json, which will pipe a shit ton of data into the "s" mode
+				console.log("batch time")
+				let inputgrids
+				let mode=document.getElementById("batchmodeinput").value
+				console.log(mode)
+				if(document.getElementById("batchinputfile").files.length>0){ //file uploaded
+					if(mode=="m"){
+						difficultyTally={}
+						savedPuzzles=[]
+						processNDJSON(document.getElementById("batchinputfile").files[0])
+					}else{
+						let fr=new FileReader()
+						let file=document.getElementById("batchinputfile").files[0]
+						fr.onload = function(e){
+							console.log(e)
+							inputgrids=JSON.parse(e.target.result)
+							console.log(inputgrids)
+							
+							runBatch(inputgrids,mode,savebatchruntofile)
+						}
+						fr.readAsText(file)
+					}
+				}else{ //no file
+					inputgrids=JSON.parse(document.getElementById("batchinput").value)
+					runBatch(inputgrids,mode,savebatchruntofile)
+				}
+			}
+			
+			function runBatch(inputgrids=testgrids.Easy,mode="n",logtoFile=false){ //solve all puzzles from the input array
+//			modes: n=normal, c=cage combos, b=both, s=4x4 project, m=4x4 project (just tally)
+				if(mode==="s"||mode==="m"){ //handle special input from 4x4 project
+					let convertedinput=[]
+					let inpkeys=Object.keys(inputgrids)
+					let stringstart,curk
+					for(let i=0;i<inpkeys.length;i++){
+						curk=inputgrids[inpkeys[i]]
+						if(curk[0]==''){continue}
+						stringstart="4:"+bintoTatham(Number(inpkeys[i]).toString(2).padStart(24,"0"))+","
+						//stringstart="3:"+bintoTatham(Number(inpkeys[i]).toString(2).padStart(12,"0"))+","
+						for(let j=0;j<curk.length;j++){
+							convertedinput[convertedinput.length] = stringstart+curk[j]
+						}
+					}
+					inputgrids=[...convertedinput]
+					if(mode==="s"){
+						mode="b"
+					}
+				}
+				if(mode!=="m"){console.log(inputgrids)}
+				//return
+				let storeOptions = {...Options}
+				if(mode=="c"){
+					Options={CageCombinations:true,maxCageDepth:Options.maxCageDepth}
+				}
+				batchmode=true
+				displayboard=false
+				let t=Date.now()
+				let logelement=document.getElementById("batchlog")
+				let leiH="Puzzle #	Puzzle String	Success	Max	Total"
+				if(mode==="c"){
+					leiH="Puzzle #	Puzzle String	Success	Max Depth	Steps"
+				}
+				if(mode==="b"){
+					leiH="Puzzle #	Puzzle String	Success	Max	Total	Max Depth	Steps"
+				}
+				let dfdsf
+				let batchData = []
+				for(let i=0;i<inputgrids.length;i++){
+					importString(inputgrids[i])
+					dfdsf=solver()
+					if(mode==="m"){
+						if(i%100000==0){
+							console.log(i)
+							console.log(savedPuzzles.length)
+						}
+						if(dfdsf){
+							difficultyTally[dfdsf[0]] = (difficultyTally[dfdsf[0]]??0)+1
+							if(dfdsf[0]>3.9){
+								savedPuzzles[savedPuzzles.length] = [inputgrids[i],dfdsf[0]]
+							}
+						}else{
+							savedPuzzles[savedPuzzles.length] = [inputgrids[i],100]
+						}
+						continue
+					}
+					if(mode==="c"){
+						if(dfdsf[0]==0){dfdsf[0]=3.8}
+						dfdsf[0]=(dfdsf[0]-3.6)*5
+						dfdsf[1]=solvelog.length-1
+						if(lognakedsingles){
+							dfdsf[1]-=gridDimension**2
+						}
+					}
+					
+					if(dfdsf){
+						console.log("Puzzle "+i+" has difficulty "+Math.round(dfdsf[0]*10)/10)
+						batchData[batchData.length]={Grid:inputgrids[i],Success:true,Max:dfdsf[0],Total:dfdsf[1]}
+					}else{
+						console.log("Puzzle "+i+" failed to solve")
+						batchData[batchData.length]={Grid:inputgrids[i],Success:false,Max:dfdsf[0],Total:dfdsf[1]}
+					}
+					if(logtoFile){
+						if(i%(Math.floor(inputgrids.length/10))==0&&i>0){
+							download(JSON.stringify(batchData),"Batch Run incomplete ("+i+" of "+inputgrids.length+") "+Date.now()+".txt")
+						}
+					}
+					if(mode==="b"){ //redo it with cage combinations only
+						Options={CageCombinations:true,maxCageDepth:Options.maxCageDepth}
+						importString(inputgrids[i])
+						dfdsf=solver()
+						if(!dfdsf){continue}
+						if(dfdsf[0]==0){dfdsf[0]=3.8}
+						dfdsf[0]=(dfdsf[0]-3.6)*5
+						dfdsf[1]=solvelog.length-1
+						if(lognakedsingles){
+							dfdsf[1]-=gridDimension**2
+						}
+						batchData[batchData.length-1].MaxCC=dfdsf[0]
+						batchData[batchData.length-1].TotCC=dfdsf[1]
+						console.log("...and depth "+Math.round(dfdsf[0]*10)/10)
+						Options=storeOptions
+					}
+				}
+				console.log("done :D")
+				console.log("Total time elapsed: "+(Date.now()-t)/1000+" seconds")
+				
+				if(mode=="m"){
+					console.log(difficultyTally)
+					console.log(savedPuzzles)
+					console.log(savedPuzzles.length)
+					return
+				}
+				
+				console.log(batchData)
+				logelement.innerHTML="Done :D in "+(Date.now()-t)/1000+" seconds"
+				let bdi
+				for(let i=0;i<batchData.length;i++){
+					bdi=batchData[i]
+					if(bdi.Success){
+						leiH+="\n"+i+"	"+bdi.Grid+"	1	"+Math.round(bdi.Max*10)/10+"	"+Math.round(bdi.Total*10)/10
+						if(mode==="b"){
+							leiH+="	"+Math.round(bdi.MaxCC*10)/10+"	"+Math.round(bdi.TotCC*10)/10
+						}
+					}else{
+						leiH+="\n"+i+"	"+bdi.Grid+"	0"
+					}
+				}
+				if(logtoFile){
+					download(leiH,"Batch Run "+Date.now()+".txt")
+				}else{
+					logelement.innerHTML=leiH
+				}
+				batchmode=false
+				displayboard=true
+				if(mode==="c"){
+					Options={...storeOptions}
+				}
+			}
+			
+			//open in sudoku wiki solver
+			function swiki(){
+				if(gridDimension!=6){alert("6x6 only please");return}
+				let adj={}
+				let s=[]
+				for(let i=0;i<Grid.Cages.length;i++){
+					adj[i]={}
+					s[i]=[i]
+				}
+				let letters={}
+				function addEdge(a,b){
+					if(a!==b){
+						adj[a][b]=true
+						adj[b][a]=true
+					}
+				}
+				let letter,ni,nj,nl
+				let dirs=[[-1,0],[1,0],[0,-1],[0,1]]
+				for(let i=0;i<gridDimension;i++){
+				  for(let j=0;j<gridDimension;j++){
+					letter=Grid.Rows[i][j];
+					for(let [di,dj] of dirs){
+					  ni=i+di;
+					  nj=j+dj;
+					  if((ni>=0)&&(ni<gridDimension)&&(nj>=0)&&(nj<gridDimension)) {
+						nl=Grid.Rows[ni][nj];
+						addEdge(Grid.Cells[letter].Cage,Grid.Cells[nl].Cage);
+					  }
+					}
+				  }
+				}
+				for(let l in adj){
+				  adj[l]=Object.keys(adj[l])
+				}
+				let colours = [1,2,3,4,5]
+				function assignColours(lettersArr,index,mapping){
+				  if(index===lettersArr.length){
+					return mapping
+				  }
+				  const letter=lettersArr[index];
+				  for(let colour of colours){
+					let conflict=false
+					for(let n of adj[letter]){
+					  if(mapping[n]===colour){
+						conflict = true
+						break
+					  }
+					}
+					if(!conflict){
+					  mapping[letter]=colour
+					  const result=assignColours(lettersArr,index+1,mapping)
+					  if(result){
+						return result
+					  }
+					  // backtrack
+					  delete mapping[letter]
+					}
+				  }
+				  return null
+				}
+				
+				let sol=assignColours(s,0,{})
+				let gridstring=""
+				let defstring=","
+				let ccage
+				let gk=Object.keys(Grid.Cells)
+				let opKey={"A":"+","S":"-","D":"/","M":"x"}
+				for(let i=0;i<gk.length;i++){
+					ccage=Grid.Cells[gk[i]].Cage
+					gridstring+=sol[ccage]
+					ccage=Grid.Cages[ccage]
+					if(ccage.Cells[0]==gk[i]){
+						if(opKey[ccage.Operation]===null){alert("Operator "+ccage.Operation+" is not supported by SudokuWiki solver");return}
+						defstring+=ccage.Total+opKey[ccage.Operation]
+					}
+					defstring+=","
+				}
+				gridstring+=defstring
+				console.log(gridstring)
+				//console.log(sol)
+				window.open("https://www.sudokuwiki.org/KenKen6x6.aspx?bd="+gridstring, '_blank').focus()
+			}
+			
+			//import utilities
+			let charKey="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-~"
+			function binToAlphaNum(input){ //input must be a string of binary digits
+				let chunks=input.match(/.{1,6}/g);
+				chunks[chunks.length-1]=chunks[chunks.length-1].padEnd(6,"0");
+				let outp=""
+				for(let i=0;i<chunks.length;i++){
+					outp=outp+charKey[parseInt(chunks[i],2)]
+				}
+				return outp
+			}
+			
+			function alphaNumToBin(input,gridSize=gridDimension){
+				let outp=""
+				for(let i=0;i<input.length;i++){
+					let chunk=charKey.indexOf(input[i]).toString(2).padStart(6,"0")
+					outp+=chunk
+				}
+				return outp
+			}
+			
+			function mergeCages(cage1,cage2){ //cage1 eats cage2 (inputs are number indices into the Grid.Cages array)
+				if(cage1==cage2){return}
+				if(cage1>cage2){let d=cage2;cage2=cage1;cage1=d} //lowest cage ID should survive
+				let gc1=Grid.Cages[cage1]
+				let gc2=Grid.Cages[cage2]
+				for(let i=0;i<gc2.Cells.length;i++){
+					Grid.Cells[gc2.Cells[i]].Cage=cage1 //set cell parent
+					gc1.Cells[gc1.Cells.length]=gc2.Cells[i] //add cage child
+				}
+				Grid.Cages[cage2]=null
+			}
+			
+			function decodeRLE(s){ //s3 becomes sss
+				let outp=""
+				let i=0
+				while(i<s.length){
+					let c=s[i]
+					let cn=""
+					i++
+					while(i<s.length&&!isNaN(parseInt(s[i]))){	
+						cn+=s[i]
+						i++
+					}
+					if(cn.length>0){
+						outp+=c.repeat(parseInt(cn))
+					}else{
+						outp+=c
+					}
+				}
+				return outp;
+			}
+			
+			let tatkey="_abcdefghijklmnopqrstuvwxyz"
+			function tathamToBin(str){ //doesn't accept RLE so decode that first - and yes this is in itself an RLE format
+				let outp=""
+				for(let i=0;i<str.length;i++){
+					outp+="0".repeat(tatkey.indexOf(str[i]))
+					if(str[i]!="z"){outp+="1"}
+				}
+				return outp
+			}
+			
+			function bintoTatham(inp){
+				let zerorun=0
+				let outp=""
+				for(let i=0;i<inp.length;i++){
+					if(inp[i]=="1"){
+						if(zerorun>26){
+							outp+="z".repeat(Math.floor(zerorun/27))
+							outp+=tatkey[zerorun%27]
+						}else{
+							outp+=tatkey[zerorun]
+						}
+						zerorun=0
+					}else{
+						zerorun++
+					}
+				}
+				if(inp[inp.length-1]=="0"){
+					outp+=tatkey[zerorun] //phantom 1
+				}
+				let rled=""
+				let curc=outp[0]
+				let currun=1
+				//RLE - aaa becomes a3
+				for(let i=1;i<outp.length;i++){
+					if(curc!=outp[i]){
+						rled+=curc
+						if(currun==2){rled+=curc}
+						if(currun>2){rled+=currun}
+						curc=outp[i]
+						currun=1
+					}else{
+						currun++
+					}
+				}
+				rled+=curc
+				if(currun==2){rled+=curc}
+				if(currun>2){rled+=currun}
+				return rled
+			}
+			
+			var importEl = document.getElementById("import")
+			let cageDefRegex=/[a-zA-Z]\d+/g
+			let cageKey={"M":"x","D":"÷","A":"+","S":"-","E":"^","O":"|","R":"%"}
+			function importString(str=importEl.value,format="detect"){
+				let importedGridSize=""
+				let divLines=""
+				let cageDefs=""
+				if(format=="detect"){
+					if(str.includes(":")&&str.includes(",")){
+						format="tatham"
+					}else if(str.split("_").length==3){
+						format="line"
+					}else{
+						alert("unknown format :(")
+						return
+					}
+				}
+				//console.log(format)
+				if(format=="tatham"){ //tatham format: 6:_3a_5a_3a_3a_4a3__b_3ba_aa_a5,m6a9m30a6d3m6s2a7d3s1d2s3m6m6a9s1s1
+					let spl1=str.split(":");
+					let spl2=spl1[1].split(",");
+					//console.log(spl1)
+					//console.log(spl2)
+					importedGridSize=spl1[0]
+					let dumbRLE=spl2[0] //bitmask of dividing lines, cols top-down left-right, then rows left-right top-down, compressed with zero-biased RLE for whatever reason
+					//encode: https://git.tartarus.org/?p=simon/puzzles.git;a=blob;f=keen.c;h=7e2f71c8f9644767901517a70122f19b7b2941db;hb=HEAD#l747
+					//decode: https://git.tartarus.org/?p=simon/puzzles.git;a=blob;f=keen.c;h=7e2f71c8f9644767901517a70122f19b7b2941db;hb=HEAD#l822
+					divLines = tathamToBin(decodeRLE(dumbRLE))
+					cageDefs=spl2[1].match(cageDefRegex) //cage operations and totals, top-down left-right, by top-left-most cell of cage
+				}else if(format=="line"){ //line format: 6_79731c8taqg_m6a9m30a6d3m6s2a7d3s1d2s3m6m6a9s1s1
+					let spl1=str.split("_");
+					importedGridSize=spl1[0]
+					divLines=alphaNumToBin(spl1[1],importedGridSize)
+					cageDefs=spl1[2].match(cageDefRegex)
+				}else{
+					alert("unsupported format")
+					return
+				}
+				//console.log(importedGridSize)
+				//console.log(divLines)
+				//console.log(cageDefs)
+				//set main grid variables and update
+				if(importedGridSize.includes('-')){ //custom digit range
+					alert("sorry custom digit ranges are not supported yet")
+					return
+				}
+				gridDimension=Number(importedGridSize)
+				regionSum=gridDimension*(gridDimension+1)/2
+				candidateMatrixWidth=Math.ceil(Math.sqrt(importedGridSize))
+				if(tupleCache[gridDimension]===undefined){
+					tupleCache[gridDimension]={}
+				}
+				initialiseNewGrid()
+				
+				let divLinesVerti=divLines.substring(gridDimension*(gridDimension-1))
+				//merge cells with no lines between them according to divLines
+				for(let i=0;i<gridDimension*(gridDimension-1);i++){ //row-wise
+					if(divLines[i]=="0"){
+						let cx=i%(gridDimension-1)+1
+						let cy=Math.floor(i/(gridDimension-1))+1
+						let c1="r"+cy+"c"+cx
+						let c2="r"+cy+"c"+(cx+1)
+						//console.log("Merging "+c1+" and "+c2)
+						mergeCages(Grid.Cells[c1].Cage,Grid.Cells[c2].Cage)
+						toggleGridline(c1,"edge right")
+					}
+				}
+				for(let i=0;i<divLinesVerti.length;i++){ //column-wise
+					if(divLinesVerti[i]=="0"){
+						let cy=i%(gridDimension-1)+1
+						let cx=Math.floor(i/(gridDimension-1))+1
+						let c1="r"+cy+"c"+cx
+						let c2="r"+(cy+1)+"c"+cx
+						//console.log("Merging "+c1+" and "+c2)
+						mergeCages(Grid.Cells[c1].Cage,Grid.Cells[c2].Cage)
+						toggleGridline(c1,"edge bottom")
+					}
+				}
+				//clean up all these null cages
+				let realCages=[]
+				let realCagesHT={}
+				for(let i=0;i<Grid.Cages.length;i++){
+					if(Grid.Cages[i]!=null){
+						realCagesHT[i]=realCages.length
+						realCages[realCages.length]=i
+					}
+				}
+				//console.log(realCages)
+				//console.log(realCagesHT)
+				let cellsk=Object.keys(Grid.Cells)
+				for(let i=0;i<cellsk.length;i++){
+					Grid.Cells[cellsk[i]].Cage = realCagesHT[Grid.Cells[cellsk[i]].Cage]
+				}
+				let newCages=[]
+				for(let i=0;i<realCages.length;i++){
+					newCages[i]=Grid.Cages[realCages[i]]
+				}
+				Grid.Cages=newCages
+				for(let i=0;i<cageDefs.length;i++){ //load in cage totals & operators
+					let gci=Grid.Cages[i]
+					let op=cageDefs[i][0].toUpperCase()
+					let to=parseInt(cageDefs[i].substring(1))
+					gci.Operation=op
+					gci.Total=to
+					if(!cageKey[op]){
+						alert("sorry, operator "+op+" is not yet supported")
+						return false
+					}
+					document.getElementById(gci.Cells[0]).getElementsByClassName("cagenote")[0].innerText=to+cageKey[op]
+					//take this opportunity to fill in cage peers
+					for(let j=0;j<gci.Cells.length;j++){
+						//console.log(gci.Cells[j])
+						for(let k=0;k<Grid.Cells[gci.Cells[j]].Peers.length;k++){
+							if(Grid.Cells[Grid.Cells[gci.Cells[j]].Peers[k]].Cage != i){
+								gci.PeersHT[Grid.Cells[Grid.Cells[gci.Cells[j]].Peers[k]].Cage]=true
+							}
+						}
+					}
+					gci.Peers = Object.keys(gci.PeersHT)
+				}
+				solverlock=false
+				solvelog=[]
+			}
+			
+			//implement the puzzle logic
+			//basics:
+			//cages have some inherent set of possible combinations, determined by the total, operator and shape of the cage
+			//through constraint propagation we can remove these combinations until one remains, which must be the correct one
+			//same applies for the latin square rules: every cell has a specific set of possible digits, these are removed by constraint propagation, the remaining digit is correct
+			//the intersection of these two spaces forms the basis of advanced puzzle solving
+			//SOME IMPORTANT DECISIONS:
+			//no sudoku boxes!
+			//no cells with no cage
+			//disjoint cages should be possible if imported, but let's not generate them
+			//cache and hash whenever you can
+			//no singles, singles should be input as single-cell addition cages (might be subject to change later)
+			
+			var Grid,digits,rows,cols,positions
+			
+			function initialiseNewGrid(){
+				Grid = {}
+				Grid.Cells={}
+				Grid.Cages=[]
+				Grid.RegionSliceData={Rows:[],Cols:[]}
+				Grid.CombinationDepth=1
+				digits = []
+				rows = []
+				cols = []
+				positions = []
+				for(let y=1;y<=gridDimension;y++){
+					digits[y-1]=y
+					rows[y-1]="r"+y 
+					cols[y-1]="c"+y //shhhhhh
+					Grid.RegionSliceData.Rows[y-1]=[]
+					Grid.RegionSliceData.Cols[y-1]=[]
+					for(let x=1;x<=gridDimension;x++){
+						if(y+x-1<=gridDimension){ //y-1 is slice origin, x is slice size
+							Grid.RegionSliceData.Rows[y-1][x]="Compute"
+							Grid.RegionSliceData.Cols[y-1][x]="Compute"
+						}
+						let curc="r"+y+"c"+x
+						positions[positions.length]=curc
+						let cellPeers = []
+						let cellPeersHT = {}
+						for (let px=1;px<=gridDimension;px++){
+							if(px!=x){
+								cellPeers[cellPeers.length]="r"+y+"c"+px
+								cellPeersHT["r"+y+"c"+px]=true
+							}
+						}
+						for (let py=1;py<=gridDimension;py++){
+							if(py!=y){
+								cellPeers[cellPeers.length]="r"+py+"c"+x
+								cellPeersHT["r"+py+"c"+x]=true
+							}
+						}
+						Grid.Cells[curc]={
+							Position:curc,					//position of cell
+							Candidates:[], 					//possible candidates in this cell
+							CandidatesHT:{},				//hash table for lookups
+							Digit:false,					//placed digit
+							Peers:cellPeers, 				//all cells seen by this cell
+							PeersHT:cellPeersHT,			//hash table of peers for quickly checking if 2 cells see each other
+							Cage:(x-1)+(y-1)*gridDimension 	//cage this cell belongs to
+						}
+						Grid.Cages[(x-1)+(y-1)*gridDimension]={
+							Total:0,						//result of operation on digits of all cells of this cage
+							Operation:"N",					//operation performed (N=placeholder, M=multiplication, D=division, A=addition, S=substraction, more to come later?)
+							Cells:[curc],					//cells this cage contains
+							Combinations:[],				//possible combinations of digits: each entry will be an array like [2,4,5] where position N in the array is 
+															//the digit that goes into the cell Cells[N]
+							Peers:[],						//all cages with mutual peers
+							PeersHT:{},						//hash table of peers
+							Pointing:"?",					//stored pointing candidates to prevent expensive recomputing
+							Parity:2,						//sum parity: 0=even, 1=odd, 2=unknown
+							Sum:[],							//table of possible sums of digits
+							OverlapSums:{},					//potential sums of cell subsets, for use in the ruleof21 solver
+							DepthCache:0					//combination depths already tested on this cage
+						}
+					}
+				}
+				Grid.Regions=[]
+				Grid.Rows=[]
+				Grid.Cols=[]
+				for(let y=1;y<=gridDimension;y++){
+					let newb=[]
+					for(let x=1;x<=gridDimension;x++){
+						newb[newb.length]="r"+y+"c"+x
+					}
+					Grid.Rows[Grid.Rows.length]=newb
+					Grid.Regions[Grid.Regions.length]=newb
+				}
+				for(let x=1;x<=gridDimension;x++){
+					let newb=[]
+					for(let y=1;y<=gridDimension;y++){
+						newb[newb.length]="r"+y+"c"+x
+					}
+					Grid.Cols[Grid.Cols.length]=newb
+					Grid.Regions[Grid.Regions.length]=newb
+				}
+				updateGridSize(gridDimension)
+				//console.log(Grid)
+				/*console.log(digits)
+				console.log(rows)
+				console.log(cols)*/
+			}
+			initialiseNewGrid()
+			
+			//these two functions MUST be run whenever eliminations are made
+			function updateCageCandidates(cage){ //if cage combinations have been removed, update cell candidates
+				let oldcounts=[]
+				cage.Pointing="?" //pointing candidates must be re-computed
+				cage.DepthCache=0 //cage combinations must be re-computed
+				for(let i=0;i<cage.Cells.length;i++){
+					oldcounts[i]=Grid.Cells[cage.Cells[i]].Candidates.length
+					Grid.Cells[cage.Cells[i]].CandidatesHT={}
+				}
+				for(let i=0;i<cage.Combinations.length;i++){
+					let curcomb=cage.Combinations[i]	
+					for(let j=0;j<curcomb.length;j++){
+						Grid.Cells[cage.Cells[j]].CandidatesHT[curcomb[j]]=true
+					}
+				}
+				for(let i=0;i<cage.Cells.length;i++){
+					let curc=Grid.Cells[cage.Cells[i]]
+					curc.Candidates=Object.keys(curc.CandidatesHT)
+					//if(!curc.Digit&&curc.Candidates.length==1){
+						//new naked single!
+						//console.log("new naked single")
+						//console.log(cage.Cells[i])
+						//handleNakedSingle(curc)
+					//}else{
+						//check if it's still diminished
+						if(detailedlogs){
+							if(oldcounts[i]!=curc.Candidates.length){
+								//console.log("Cage combinations: eliminations made in cell "+curc.Position)
+								solvelog[solvelog.length]={Explanation:"Eliminations made in cell "+curc.Position+": from "+oldcounts[i]+" candidates to "+curc.Candidates.length,
+									Difficulty:0}
+							}
+						}
+					//}
+				}
+				for(let i=0;i<cage.Cells.length;i++){
+					let curc=Grid.Cells[cage.Cells[i]]
+					if(!curc.Digit&&curc.Candidates.length==1){
+						//new naked single!
+						//console.log("new naked single")
+						//console.log(cage.Cells[i])
+						handleNakedSingle(curc)
+					}
+				}
+			}
+			
+			function updateCageSumParity(cage){ //calculate possible sums and parity of cage
+				let okcos=Object.keys(cage.OverlapSums)
+				for(let i=okcos.length-1;i>=0;i--){
+					if(cage.OverlapSums[okcos[i]].length>1){
+						delete cage.OverlapSums[okcos[i]] //region sum must be recomputed
+					}
+				}
+				//sum
+				switch(cage.Operation){
+					case "A":
+						cage.Sum=[cage.Total]
+						cage.Parity=cage.Total%2
+						return
+						break;
+					default:
+						let possibleSums={}
+						for(let i=0;i<cage.Combinations.length;i++){
+							possibleSums[cage.Combinations[i].reduce((a, b) => a + b, 0)]=true
+						}
+						cage.Sum=Object.keys(possibleSums)
+						if(cage.Operation=="S"){
+							cage.Parity=cage.Total%2
+							return
+						}
+						break;
+				}
+				//parity
+				let parity=cage.Sum[0]%2
+				for(let i=1;i<cage.Sum.length;i++){
+					if(parity!=cage.Sum[i]%2){
+						cage.Parity=2
+						return
+					}
+				}
+				cage.Parity=parity
+			}
+			
+			function updateCageCombinations(cell){ //if cell candidates have been removed, update cage combinations
+				let newcombo=[]
+				let cellcage=Grid.Cages[cell.Cage]
+				let curc,valid
+				for(let i=0;i<cellcage.Combinations.length;i++){
+					curc=cellcage.Combinations[i]
+					valid=true
+					for(let j=0;j<curc.length;j++){ //check combination is still valid in all cells
+						if(!Grid.Cells[cellcage.Cells[j]].CandidatesHT[curc[j]]){
+							valid=false
+						}
+					}
+					if(valid){newcombo[newcombo.length]=curc}
+				}
+				if(detailedlogs){
+					if(newcombo.length!=cellcage.Combinations.length){
+						//eliminations have been made
+						//console.log(cellcage.Combinations)
+						//console.log(newcombo)
+						//console.log("Eliminations made in cage with cell "+cell.Position)
+						solvelog[solvelog.length]={Explanation:"Cage combinations: Eliminations made in cage with cell "+cell.Position+": from "+cellcage.Combinations.length+" combinations to "+newcombo.length,
+							Difficulty:0}
+					}
+				}
+				cellcage.Combinations = newcombo
+				updateCageSumParity(cellcage)
+				updateCageCandidates(cellcage)
+			}
+			
+			function handleNakedSingle(cell){
+				if(cell.Candidates.length!=1){return false} //not single
+				if(cell.Digit){return false}//found already
+				//console.log("Naked single in "+cell.Position)
+				//console.log(!cell.Digit)
+				//console.log(JSON.stringify(cell))
+				let newSingle=cell.Candidates[0]
+				if(detailedlogs||lognakedsingles){
+					if(solvelog.length>0&&solvelog[solvelog.length-1].Explanation!="Hidden single: "+newSingle+" in "+cell.Position){
+						solvelog[solvelog.length]={Explanation:"Naked single: "+newSingle+" in "+cell.Position,Difficulty:0}
+					}
+				}
+				cell.Digit=Number(newSingle)
+				if(displayboard){
+					document.getElementById(cell.Position).getElementsByClassName("digittext")[0].innerText=newSingle
+					document.getElementById(cell.Position).getElementsByClassName("candidatetext")[0].innerText=""
+				}
+				let toupdate=[]
+				for(let i=0;i<cell.Peers.length;i++){
+					let curp=Grid.Cells[cell.Peers[i]]
+					if(curp.CandidatesHT[newSingle]){
+						//console.log("removing digit "+newSingle+" from "+cell.Peers[i])
+						delete curp.CandidatesHT[newSingle]
+						curp.Candidates=Object.keys(curp.CandidatesHT)
+						//updateCageCombinations(curp)
+						toupdate[toupdate.length]=curp
+					}
+				}
+				if(toupdate.length>0){
+					for(let i=0;i<toupdate.length;i++){
+						updateCageCombinations(toupdate[i])
+					}
+				}
+			}
+			
+			function exponentiate(nums){
+				return nums.reduceRight((acc, num/*, index, array*/) => {
+					//if(index===array.length-1){return num}
+					let result=Math.pow(num,acc);
+					//if(result>target&&num!=1){
+					//	throw new Error("Too big")
+					//}
+					return result;
+				}, 1)
+			}
+			
+			let tupleCache = {6:{2:[[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[2,2],[2,3],[2,4],[2,5],[2,6],[3,3],[3,4],[3,5],[3,6],[4,4],[4,5],[4,6],[5,5],[5,6],[6,6]]}}
+			
+			function calculateCageCombinations(cage){ //determine all possible digit combinations & permutations for a single cage
+													  //this only has to be run once per puzzle
+													  
+				let combinations=tupleCache[gridDimension][cage.Cells.length]
+				if(combinations===undefined){
+					combinations=getTupleCombosFromArray(digits,cage.Cells.length)
+					tupleCache[gridDimension][cage.Cells.length] = [...combinations]
+				}
+				
+				//TODO: rewrite to generate combinations first, check for total, THEN generate permutations
+				let op=cage.Operation
+				let tot=cage.Total
+				let cells=cage.Cells
+				let truecombinations=[]
+				let maxval,sum,product,perms,exp
+				switch(op){ //reduce combinations to those that result in the correct total
+					case "M":
+						for(let i=0;i<combinations.length;i++){
+							if(combinations[i].reduce((a, b) => a * b, 1)==tot){
+								truecombinations[truecombinations.length]=[...combinations[i]]
+							}
+						}
+						break;
+					case "A":
+						for(let i=0;i<combinations.length;i++){
+							if(combinations[i].reduce((a, b) => a + b, 0)==tot){
+								truecombinations[truecombinations.length]=[...combinations[i]]
+							}
+						}
+						break;
+					case "D":
+						for(let i=0;i<combinations.length;i++){
+							maxval=combinations[i].reduce((a, b) => Math.max(a,b))
+							product=combinations[i].reduce((a, b) => a * b, 1)
+							if((maxval/(product/maxval))==tot){
+								truecombinations[truecombinations.length]=[...combinations[i]]
+							}
+						}
+						break;
+					case "S":
+						for(let i=0;i<combinations.length;i++){
+							maxval=combinations[i].reduce((a, b) => Math.max(a,b))
+							sum=combinations[i].reduce((a, b) => a + b, 0)
+							//if(Math.abs(maxval-(sum-maxval))==tot){
+							if((maxval-(sum-maxval))==tot){
+								truecombinations[truecombinations.length]=[...combinations[i]]
+							}
+						}
+						break;
+					case "E":
+						for(let i=0;i<combinations.length;i++){
+							perms=permute(combinations[i])
+							for(let j=0;j<perms.length;j++){
+								try{
+									if(exponentiate(perms[j])==tot){
+										truecombinations[truecombinations.length]=[...combinations[i]]
+										break;
+									}
+								}catch(e){
+									continue
+								}
+							}
+						}
+						break;
+					case "O":
+						for(let i=0;i<combinations.length;i++){
+							if(combinations[i].reduce((a, b) => a|b, 0)==tot){
+								truecombinations[truecombinations.length]=[...combinations[i]]
+							}
+						}
+						break;
+					case "R":
+						for(let i=0;i<combinations.length;i++){
+							if(combinations[i].length>2){
+								alert("Unable to handle modulus cages with >2 cells")
+								return
+							}
+							if(combinations[i][0]%combinations[i][1]==tot||combinations[i][1]%combinations[i][0]==tot){
+								truecombinations[truecombinations.length]=[...combinations[i]]
+							}
+						}
+						break;
+				}
+				//console.log(cage)
+				//console.log(combinations)
+				//console.log(truecombinations)
+				//now permute and remove invalid combinations (cell seeing another cell with same value)
+				perms=[]
+				let eventruercombinations=[]
+				for(let i=0;i<truecombinations.length;i++){
+					perms=permute(truecombinations[i])
+					//console.log(perms)
+					for(let n=0;n<perms.length;n++){
+						let thiscomb=perms[n]
+						let valid=true
+						for(let j=0;j<thiscomb.length-1;j++){
+							for(let k=j+1;k<thiscomb.length;k++){
+								if(thiscomb[j]==thiscomb[k]){ //matching digits
+									if(Grid.Cells[cage.Cells[j]].PeersHT[cage.Cells[k]]){ //they see each other
+										valid=false
+									}
+								}
+							}
+						}
+						if(valid){
+							eventruercombinations[eventruercombinations.length]=[...thiscomb]
+							for(let j=0;j<thiscomb.length;j++){ //add these digits to candidates of cells
+								Grid.Cells[cage.Cells[j]].CandidatesHT[thiscomb[j]] = true
+							}
+						}
+					}
+				}
+				//console.log(eventruercombinations)
+				cage.Combinations = eventruercombinations
+				for(let i=0;i<cage.Cells.length;i++){
+					let curcell=Grid.Cells[cage.Cells[i]]
+					curcell.Candidates=Object.keys(curcell.CandidatesHT)
+				}
+				updateCageSumParity(cage)
+			}
+			
+			function hammingWeight(n){
+				let count=0
+				while(n){
+					n=n&(n-1)
+					count++
+				}
+				return count
+			}
+			
+			/**
+			 * Copyright 2012 Akseli Palén.
+			 * Created 2012-07-15.
+			 * Licensed under the MIT license.
+			 */
+			function getTuplesFromArray(set,k=2){
+				//for [1,2,3], 2 return [[1,2],[1,3],[2,3]]
+				var i, j, combs, head, tailcombs;
+				if (k > set.length || k <= 0) {
+					return [];
+				}
+				if (k == set.length) {
+					return [set];
+				}
+				if (k == 1) {
+					combs = [];
+					for (i = 0; i < set.length; i++) {
+						combs.push([set[i]]);
+					}
+					return combs;
+				}
+				combs = [];
+				for (i = 0; i < set.length - k + 1; i++) {
+					head = set.slice(i, i+1);
+					tailcombs = getTuplesFromArray(set.slice(i + 1), k - 1);
+					for (j = 0; j < tailcombs.length; j++) {
+						combs.push(head.concat(tailcombs[j]));
+					}
+				}
+				return combs;
+			}
+			function getTupleCombosFromArray(set,k=2){ //including duplicates
+				//for [1,2,3], 2 return [[1,1],[1,2],[1,3],[2,2],[2,3],[3,3]]
+				var i, j, combs, head, tailcombs;
+				if(k<=0){
+					return [];
+				}
+				if(k==1){
+					return set.map(el => [el]);
+				}
+				combs=[];
+				for(i=0;i<set.length;i++){
+					head=[set[i]]
+					tailcombs=getTupleCombosFromArray(set.slice(i),k-1);
+					for (j=0;j<tailcombs.length;j++) {
+						combs.push(head.concat(tailcombs[j]));
+					}
+				}
+				return combs;
+			}
+			
+			//save some time on re-checks
+			function getTuplesFromArrayWithForced(set,forced,k=2){
+				//bring forced to the start
+				let i,j,c
+				let fHT={}
+				for(i=0;i<forced.length;i++){
+					fHT[forced[i]]=true
+				}
+				let newArr=[]
+				for(i=0;i<set.length;i++){
+					if(!fHT[set[i]]){
+						newArr[newArr.length]=set[i]
+					}
+				}
+				newArr=forced.concat(newArr)
+				let outp=[]
+				for(i=0;i<forced.length;i++){
+					newArr.shift()
+					c=[forced[i]]
+					let tups=getTuplesFromArray(newArr,k-1)
+					for(j=0;j<tups.length;j++){
+						outp.push(c.concat(tups[j]))
+					}
+				}
+				return outp
+			}
+			
+			function permute(nums) {
+				//assume input array is already sorted
+				//nums.sort((a, b) => a - b);
+				
+				const result=[];
+				const used=new Array(nums.length).fill(false);
+
+				function backtrack(current) {
+					if(current.length===nums.length){
+						result.push([...current]);
+						return;
+					}
+					for(let i=0;i<nums.length;i++){
+					// If this number is already used in the current permutation, skip it.
+					if(used[i]){continue}
+					
+					// If the current number is the same as the previous one and the previous one
+					// has not been used in this recursion branch, skip to avoid duplicates.
+					if (i > 0 && nums[i] === nums[i - 1] && !used[i - 1]) continue;
+					
+					// Choose nums[i] and mark it as used.
+					used[i] = true;
+					current.push(nums[i]);
+					
+					// Explore further.
+					backtrack(current);
+					
+					// Backtrack: remove the number and mark it as unused.
+					current.pop();
+					used[i] = false;
+					}
+				}
+				
+				backtrack([]);
+				return result;
+			}
+			
+			// Function to download data to a file
+			// By Awesomeness01 on stackoverflow
+			function download(data, filename, type="text/plain"){
+				var file = new Blob([data], {type: type});
+				if (window.navigator.msSaveOrOpenBlob) // IE10+
+					window.navigator.msSaveOrOpenBlob(file, filename);
+				else { // Others
+					var a = document.createElement("a"),
+							url = URL.createObjectURL(file);
+					a.href = url;
+					a.download = filename;
+					document.body.appendChild(a);
+					a.click();
+					setTimeout(function() {
+						document.body.removeChild(a);
+						window.URL.revokeObjectURL(url);  
+					}, 0); 
+				}
+			}
+			
+			function sround(x, n=5){
+				//rounds to n sig figs unless it would lose integer precision
+				if(x<10**n){
+					return parseFloat(x.toPrecision(n))
+				}else{
+					return Math.round(x)
+				}
+			}
+			
+			function checkSolved(){
+				let cellsk=Object.keys(Grid.Cells)
+				for(let i=0;i<cellsk.length;i++){ //all cells have 1 candidate
+					if(Grid.Cells[cellsk[i]].Candidates.length!=1){
+						if(Grid.Cells[cellsk[i]].Candidates.length==0){
+							alert("Error: "+cellsk[i]+" contains 0 candidates")
+							console.log("Error: "+cellsk[i]+" contains 0 candidates")
+							return true //true just to abort the solver
+						}
+						return false
+					}
+				}
+				for(let i=0;i<Grid.Cages.length;i++){ //all cells have 1 combination
+					if(Grid.Cages[i].Combinations.length!=1){
+						if(Grid.Cages[i].Combinations.length==0){
+							alert("Error: cage "+i+" contains 0 combinations")
+							console.log("Error: cage "+i+" contains 0 combinations")
+							return true
+						}
+						return false
+					}
+				}
+				//now for some sanity checks
+				for(let i=0;i<Grid.Cages.length;i++){ //check all cages are correct
+					let curcage=Grid.Cages[i]
+					let op=curcage.Operation
+					let sum,prod,max,perms
+					//confirm cage combinations match cell values
+					for(let j=0;j<curcage.Cells.length;j++){
+						if(curcage.Combinations[0][j]!=Grid.Cells[curcage.Cells[j]].Candidates[0]){
+							console.log("one of the cages is wrong!!")
+							console.log(curcage)
+							alert("someone fucked up :(")
+							return true
+						}
+					}
+					let correct=false
+					switch(op){
+						case "M":
+							correct=curcage.Combinations[0].reduce((a, b) => a * b, 1)==curcage.Total
+							break;
+						case "A":
+							correct=curcage.Combinations[0].reduce((a, b) => a + b, 0)==curcage.Total
+							break;
+						case "D":
+							prod=1
+							max=0
+							for(let j=0;j<curcage.Cells.length;j++){
+								prod*=Number(Grid.Cells[curcage.Cells[j]].Candidates[0])
+								max=Math.max(Number(Grid.Cells[curcage.Cells[j]].Candidates[0]),max)
+							}
+							let div=max/(prod/max)
+							correct=div==curcage.Total
+							break;
+						case "S":
+							sum=0
+							max=0
+							for(let j=0;j<curcage.Cells.length;j++){
+								sum+=Number(Grid.Cells[curcage.Cells[j]].Candidates[0])
+								max=Math.max(Number(Grid.Cells[curcage.Cells[j]].Candidates[0]),max)
+							}
+							let sub=Math.abs(max-(sum-max))
+							correct=sub==curcage.Total
+							break;
+						case "E":
+							perms=permute(curcage.Combinations[0])
+							for(let j=0;j<perms.length;j++){
+								try{
+									if(exponentiate(perms[j])==curcage.Total){
+										correct=true
+										break;
+									}
+								}catch(e){
+									continue
+								}
+							}
+							break;
+						case "O":
+							prod=0
+							for(let j=0;j<curcage.Cells.length;j++){
+								prod=prod|Number(Grid.Cells[curcage.Cells[j]].Candidates[0])
+							}
+							correct=prod==curcage.Total
+							break;
+						case "R":
+							//assume cage contains 2 cells
+							correct=curcage.Combinations[0][0]%curcage.Combinations[0][1]==curcage.Total||
+							        curcage.Combinations[0][1]%curcage.Combinations[0][0]==curcage.Total
+							break;
+						}
+						if(!correct){
+							console.log("one of the cages is wrong!!")
+							console.log(curcage)
+							alert("someone fucked up :(")
+							return true
+						}
+				}
+				let digitspresent,curreg,curc
+				for(let i=0;i<Grid.Regions.length;i++){
+					digitspresent={}
+					curreg=Grid.Regions[i]
+					for(let j=0;j<curreg.length;j++){
+						curc=Grid.Cells[curreg[j]].Candidates[0]
+						if(digitspresent[curc]){ // D:
+							console.log("one of the regions is wrong!!")
+							console.log(curreg)
+							alert("someone fucked up :(")
+							return true
+						}
+						digitspresent[curc]=true
+					}
+				}
+				return true
+			}
+			
+			let solvelog=[{Explanation:"Filled in initial combinations & candidates",Difficulty:0}]
+			//options
+			let statprint=true
+			let displayboard=true
+			let solverlock=false
+			let batchmode=false
+			
+			let tupleSizes=["0le","single","pair","triple","quad","quintuple","sextuple","septuple","octuple","nonuple","decuple"] 
+			let fishSizes=["0fish","cyclops","X-Wing","Swordfish","Jellyfish","Starfish","Whale","Leviathan","Octopus","Enneafish","Hammerhead"] //both arrays go up to 10
+			let parityNames=["Even","Odd","Unknown"]
+			
+			function solver(maxsteps=10000,hintMode=false){ //main solver logic
+				if(solverlock){
+					console.log("already solved!!! import again/another")
+					return
+				}
+				//initialisation
+				let t=Date.now()
+				if(solvelog.length==0){
+					//console.log("i thjnk the first cell might be a 1 but idk")
+					if(displayboard){ //clear leftover board visuals
+						let gridc=thegrid.children
+						for(let i=0;i<gridc.length;i++){
+							gridc[i].getElementsByClassName("digittext")[0].innerText=""
+							gridc[i].getElementsByClassName("candidatetext")[0].innerText=""
+						}
+					}
+					
+					
+					//initialise candidate data
+					for(let i=0;i<Grid.Cages.length;i++){
+						calculateCageCombinations(Grid.Cages[i])
+					}
+					
+					solvelog=[{Explanation:"Filled in initial combinations & candidates",Difficulty:0,Time:Date.now()-t}]
+					
+					//first naked singles
+					for(let i=0;i<positions.length;i++){
+						handleNakedSingle(Grid.Cells[positions[i]])
+					}
+					if(displayboard){updateCandidateDisplay()}
+				}
+				
+				if(statprint&&!batchmode){
+					let combinationsProduct=1
+					for(let i=0;i<Grid.Cages.length;i++){
+						combinationsProduct*=Grid.Cages[i].Combinations.length
+					}
+					console.log("Product of all possible combinations: "+combinationsProduct)
+				}
+				
+				/*
+				hierarchical technique solver:
+				find the easiest technique that leads to a candidate/combination elimination, check if solved, then go back to the start of the technique ladder and repeat
+				proposed hierarchy:
+				
+				latin square rules
+				- hidden singles
+				- hidden sets (size 2+)
+				- fish of size N
+				- some considerations: sets and fish are really equivalent logic, just the base & cover set spaces are different, could perhaps be implemented parallel
+				
+				hybrid:
+				if a candidate within a region is constrained to 1 cage that cage must contain the candidate (cage-region intersection)
+				
+				mutual possible combinations of 2 cages
+				mutual possible combinations of 3 cages
+				mutual possible combinations of N cages, up to some limit
+				
+				for grading: perhaps count the steps required of each difficulty, 
+				multiply by some weight and add together (like hodoku)... or go by the hardest step required (like SE)
+				note: rule of 21 is much easier than using a lot of combined cages, it is effectively a complement to the (N-1) or (N-low m) cell cages in the row/col, 
+				and often leads to direct placements early in the puzzle, perhaps it could be implemented higher up in the hierarchy
+				note 2: a lot of harder puzzles are cracked by parity (only considering %2) to eliminate combinations, consider implementing between some N and N+1 cage check
+				
+				every technique function should return true/false and if true return an array of cells affected, new naked singles must remove that candidate from all peers,
+				elimination must also be marked in the solve log
+				the first application of any technique must halt the function and return to the bottom of the technique ladder
+				make eliminations within the technique functions then handle updating the board in main loop
+				*/
+				
+				function pr(inp){ //make the input array into a comma-separated string
+					return JSON.stringify(inp).replace(/[\[\]"]/g,'').replace(/,/g,', ')
+				}
+				
+				//latin square techniques
+				
+				function hiddenSingle(){
+					let digitLocs,curreg,curcan
+					for(let i=0;i<Grid.Regions.length;i++){ //for every region...
+						curreg=Grid.Regions[i]
+						digitLocs={}
+						for(let j=0;j<curreg.length;j++){ //for every cell in that region...
+							curcan=Grid.Cells[curreg[j]].Candidates
+							if(curcan.length==1){continue} //skip over placed digits
+							for(let k=0;k<curcan.length;k++){ //for every candidate in that cell...
+								if(digitLocs[curcan[k]]===undefined){
+									digitLocs[curcan[k]]=curreg[j]
+								}else{
+									digitLocs[curcan[k]]="Bad"
+								}
+							}
+						}
+						for(let j=1;j<=gridDimension;j++){
+							if(digitLocs[j]!=undefined&&digitLocs[j]!="Bad"){
+								//console.log("Hidden single: "+j+" in "+digitLocs[j])
+								//console.log(curreg)
+								return {Digits:[j],Locations:[digitLocs[j]],Technique:"Hidden Single"}
+								//console.log(JSON.stringify(curreg))
+								//console.log(JSON.stringify(digitLocs))
+							}
+						}
+					}
+					return false
+				}
+				
+				function cageLineReduction(){
+					let digitLocs,curreg,curcan,goodcombs,indices,curcomb,goodcomb,curc
+					//claiming
+					for(let i=0;i<Grid.Regions.length;i++){ //for every region...
+						curreg=Grid.Regions[i]
+						digitLocs={}
+						for(let j=0;j<curreg.length;j++){ //for every cell in that region...
+							curcan=Grid.Cells[curreg[j]].Candidates
+							if(curcan.length==1){continue} //skip over placed digits
+							for(let k=0;k<curcan.length;k++){ //for every candidate in that cell...
+								if(digitLocs[curcan[k]]===undefined){
+									digitLocs[curcan[k]]=Grid.Cells[curreg[j]].Cage
+								}else{
+									if(digitLocs[curcan[k]]!=Grid.Cells[curreg[j]].Cage){
+										digitLocs[curcan[k]]="Bad"
+									}
+								}
+							}
+						}
+						for(let j=1;j<=gridDimension;j++){
+							if(digitLocs[j]!=undefined&&digitLocs[j]!="Bad"){
+								//console.log("CLR: "+j+" in cage "+digitLocs[j])
+								//console.log(curreg)
+								goodcombs=[]
+								indices=[]
+								curc=Grid.Cages[digitLocs[j]]
+								for(let k=0;k<curc.Cells.length;k++){ //find cells of cage that intersect region
+									if(curreg.includes(curc.Cells[k])){
+										indices[indices.length]=k
+									}
+								}
+								//console.log(indices)
+								for(let k=0;k<curc.Combinations.length;k++){
+									curcomb=curc.Combinations[k]
+									goodcomb=false
+									for(let l=0;l<indices.length;l++){
+										if(curcomb[indices[l]]==j){
+											goodcomb=true
+											break
+										}
+									}
+									if(goodcomb){
+										goodcombs[goodcombs.length]=curcomb
+									}
+								}
+								//console.log(curc.Combinations)
+								//console.log(goodcombs)
+								if(goodcombs.length!=curc.Combinations.length){
+									if(!batchmode){console.log("eliminations :D")}
+									let oldlength=curc.Combinations.length
+									curc.Combinations = goodcombs
+									let elimcells=[]
+									for(let k=0;k<indices.length;k++){
+										elimcells[elimcells.length]=curc.Cells[indices[k]]
+									}
+									//updateCageCandidates(curc)
+									return {Digits:[j],Locations:elimcells,Technique:"Claiming BLR",Cage:digitLocs[j],OldLength:oldlength}
+								}
+							}
+						}
+					}
+					//pointing
+					//simple case only: size-N cage fish TODO
+					let points,stringsplit,pointHT
+					for(let i=0;i<Grid.Cages.length;i++){
+						curcage=Grid.Cages[i]
+						if(curcage.Combinations.length==1){continue} //skip solved cages
+						if(curcage.Pointing!="?"){continue} //already calculated this before
+						points=[]
+						//pointers of the first combo
+						for(let j=0;j<curcage.Cells.length;j++){
+							stringsplit=curcage.Cells[j].split(/(?=c)/)
+							points[points.length]=curcage.Combinations[0][j]+stringsplit[0]
+							points[points.length]=curcage.Combinations[0][j]+stringsplit[1]
+						}
+						//console.log(curcage)
+						//console.log(points)
+						for(let c=1;c<curcage.Combinations.length;c++){
+							if(points.length==0){break}
+							pointHT={}
+							for(let j=0;j<curcage.Cells.length;j++){
+								stringsplit=curcage.Cells[j].split(/(?=c)/)
+								pointHT[curcage.Combinations[c][j]+stringsplit[0]]=true
+								pointHT[curcage.Combinations[c][j]+stringsplit[1]]=true
+							}
+							for(let j=0;j<points.length;j++){
+								if(!pointHT[points[j]]){
+									points.splice(j,1)
+									j--
+									if(points.length==0){break}
+								}
+							}
+						}
+						//console.log(points)
+						curcage.Pointing=points //cache
+						let eliminations={}
+						let elimdigits={}
+						let elimpoints={}
+						for(let j=0;j<points.length;j++){ //check for eliminations
+							stringsplit=points[j].match(/^(\d+)[a-zA-Z](\d+)$/)
+							let reg="Rows"
+							if(points[j].includes("c")){
+								reg="Cols"
+							}
+							curreg=Grid[reg][stringsplit[2]-1]
+							//console.log(points[j])
+							//console.log(curreg)
+							for(let k=0;k<curreg.length;k++){
+								curc=Grid.Cells[curreg[k]]
+								if(curc.Cage!=i){ //not same cage
+									if(curc.CandidatesHT[stringsplit[1]]){ //contains pointing digit
+										if(!batchmode){console.log("found elimination")
+										console.log(points[j])}
+										//console.log(curreg[k])
+										delete curc.CandidatesHT[stringsplit[1]]
+										curc.Candidates=Object.keys(curc.CandidatesHT)
+										eliminations[curreg[k]]=true
+										elimdigits[stringsplit[1]]=true
+										elimpoints[points[j]]=true
+									}
+								}
+							}
+						}
+						if(Object.keys(eliminations).length>0){
+							//console.log("there were eliminations :D")
+							return {Digits:Object.keys(elimdigits),Locations:Object.keys(eliminations),Technique:"Pointing BLR",Cage:i,Points:Object.keys(elimpoints)}
+						}
+					}
+					return false
+				}
+				
+				function hiddenSubsetAndFish(){ //they are equivalent
+					let digitLocs,regionWidths,curreg,curc,eliminations,megaOR,elimlocs,regarray,containsdigit
+					eliminations={}
+					digitLocs=[]
+					regionWidths=[]
+					regionUnsolvedDigits=[]
+					//initialise digit location data
+					for(let i=0;i<Grid.Regions.length;i++){ //for every region...
+						curreg=Grid.Regions[i]
+						//grab region width & bitmask of candidate locations per digit
+						regionWidths[i]=gridDimension
+						regionUnsolvedDigits[i]={}
+						digitLocs[i]=[]
+						for(let j=1;j<=gridDimension;j++){
+							digitLocs[i][j]=[0,[]]
+						}
+						for(let j=0;j<curreg.length;j++){ //for every cell in that region...
+							curc=Grid.Cells[curreg[j]]
+							if(curc.Digit){
+								regionWidths[i]--
+								//continue
+							}
+							for(let k=1;k<=gridDimension;k++){ //for every digit...
+								digitLocs[i][k][0]*=2
+								if(curc.Digit){continue}
+								if(curc.CandidatesHT[k]){
+									regionUnsolvedDigits[i][k]=true
+									digitLocs[i][k][0]++
+									digitLocs[i][k][1][digitLocs[i][k][1].length]=curreg[j]
+								}
+							}
+						}
+						regionUnsolvedDigits[i]=Object.keys(regionUnsolvedDigits[i])
+					}
+					//console.log(digitLocs)
+					for(let setSize=2;setSize<=gridDimension-2;setSize++){ 
+						for(let i=0;i<Grid.Regions.length;i++){ //check for hidden pairs, then triples, etc... singles have already been done
+							curreg=Grid.Regions[i]
+							if(regionWidths[i]-2<setSize){
+								//console.log("not enough space - tuple size "+setSize+" - region "+i)
+								continue
+							}
+							//make array of all setSize-tuples of regionUnsolvedDigits
+							let regtuples=getTuplesFromArray(regionUnsolvedDigits[i],setSize)
+							for(let j=0;j<regtuples.length;j++){
+								megaOR=digitLocs[i][regtuples[j][0]][0]	
+								for(let k=1;k<regtuples[j].length;k++){
+									megaOR=megaOR|digitLocs[i][regtuples[j][k]][0]
+								}
+								if(hammingWeight(megaOR)==setSize){
+									megaOR=megaOR.toString(2).padStart(gridDimension,'0')
+									//console.log("found hidden tuple size "+setSize)
+									//console.log(regtuples[j])
+									//console.log(curreg)
+									//console.log(megaOR)
+									//console.log("---")
+									//check if eliminations are warranted
+									let elimlocs=[]
+									for(let k=0;k<curreg.length;k++){
+										if(megaOR[k]=="1"){
+											elimlocs[elimlocs.length]=curreg[k]
+										}
+									}
+									//console.log(elimlocs)
+									for(let k=0;k<elimlocs.length;k++){
+										curc=Grid.Cells[elimlocs[k]].Candidates
+										for(let l=0;l<curc.length;l++){
+											if(!(regtuples[j].includes(curc[l]))){
+												//console.log("eliminate "+curc[l])
+												eliminations[elimlocs[k]]=true
+												delete Grid.Cells[elimlocs[k]].CandidatesHT[curc[l]]
+											}
+										}
+										Grid.Cells[elimlocs[k]].Candidates=Object.keys(Grid.Cells[elimlocs[k]].CandidatesHT)
+									}
+									eliminations = Object.keys(eliminations)
+									if(eliminations.length>0){
+										if(!batchmode){console.log("eliminations!")}
+										return {Digits:regtuples[j],Locations:eliminations,Technique:"Hidden Subset"}
+									}
+								}
+							}
+						}
+						//fish check
+						if(setSize>gridDimension/2){continue} //complementary fish would be found by now, no point checking oversized fish
+						regarray = getTuplesFromArray(digits,setSize)
+						//console.log(regarray)
+						for(let j=1;j<=gridDimension;j++){ //per digit
+							for(let i=0;i<regarray.length;i++){ //per n-tuple of rows
+								megaOR=digitLocs[regarray[i][0]-1][j][0]
+								if(megaOR==0){continue}
+								containsdigit=false
+								for(let k=1;k<regarray[i].length;k++){
+									if(digitLocs[regarray[i][k]-1][j][0]==0){
+										containsdigit=true
+										break
+									}
+									megaOR=megaOR|digitLocs[regarray[i][k]-1][j][0]
+								}
+								if(containsdigit){continue}
+								if(hammingWeight(megaOR)==setSize){
+									//fish found: check if there are any eliminations to be had
+									let matchcount=0
+									for(let k=0;k<gridDimension;k++){
+										if(megaOR&digitLocs[k][j][0]){
+											matchcount++
+										}
+									}
+									if(matchcount>regarray[i].length){
+										if(!batchmode){console.log("eliminations!!!!!!!!!!!")}
+										eliminations=[]
+										for(let k=1;k<=gridDimension;k++){
+											if(regarray[i].includes(k)){continue}
+											for(let l=1;l<=gridDimension;l++){
+												if((2**(gridDimension-l))&megaOR){
+													let gc=Grid.Cells["r"+k+"c"+l]
+													if(gc.CandidatesHT[j]){
+														eliminations[eliminations.length]="r"+k+"c"+l
+														delete gc.CandidatesHT[j]
+														gc.Candidates = Object.keys(gc.CandidatesHT)
+													}
+												}
+											}
+										}
+										return {Digits:[j],Locations:eliminations,Technique:"Fish - rows",BaseSets:regarray[i]}
+									}
+								}
+							}
+							
+							//i don't like having this entire block twice
+							for(let i=0;i<regarray.length;i++){ //per n-tuple of columns
+								megaOR=digitLocs[regarray[i][0]+gridDimension-1][j][0]
+								if(megaOR==0){continue}
+								containsdigit=false
+								for(let k=1;k<regarray[i].length;k++){
+									if(digitLocs[regarray[i][k]+gridDimension-1][j][0]==0){
+										containsdigit=true
+										break
+									}
+									megaOR=megaOR|digitLocs[regarray[i][k]+gridDimension-1][j][0]
+								}
+								if(containsdigit){continue}
+								if(hammingWeight(megaOR)==setSize){
+									//console.log("col!!!")
+									//console.log(regarray[i])
+									//console.log(j)
+									//fish found: check if there are any eliminations to be had
+									let matchcount=0
+									for(let k=gridDimension;k<gridDimension*2;k++){
+										if(megaOR&digitLocs[k][j][0]){
+											matchcount++
+										}
+									}
+									if(matchcount>regarray[i].length){
+										if(!batchmode){console.log("eliminations!!!!!!!!!!!")}
+										eliminations=[]
+										for(let l=1;l<=gridDimension;l++){
+											if(regarray[i].includes(l)){continue}
+											for(let k=1;k<=gridDimension;k++){
+												if((2**(gridDimension-k))&megaOR){
+													//console.log("r"+k+"c"+l)
+													let gc=Grid.Cells["r"+k+"c"+l]
+													if(gc.CandidatesHT[j]){
+														eliminations[eliminations.length]="r"+k+"c"+l
+														delete gc.CandidatesHT[j]
+														gc.Candidates = Object.keys(gc.CandidatesHT)
+													}
+												}
+											}
+										}
+										return {Digits:[j],Locations:eliminations,Technique:"Fish - cols",BaseSets:regarray[i]}
+									}
+								}
+							}
+						}
+					}
+					//console.log(regionWidths)
+					//console.log(digitLocs)
+					//console.log(regionUnsolvedDigits)
+					return false
+				}
+				
+				//Options.LatinSquare=false
+				//Options.CageCombinations=false
+				let directions=["Rows","Cols"]
+				//let maxUnknownCages=2 //max count of unknown cage sums/parities to consider at once (including innie cells)
+				//parity/sum techniques
+				function regionTotalSolver(){
+					let validCombs=[]
+					let targetSum,targetParity,forcedsum,cdir,slicecages,slicecells,iscontained,contained,overlap,unknownSums,sumOfKnowns,unknownParity,sumOfParity,
+					subRegionSums,innerCells,innerKey,curc,curSum,curPar,iSC,nSC,elims,dfdd
+					
+					function comboSum(sumSoFar,depth,maxDepth,superComb,skipNum){
+						//console.log("sum "+sumSoFar)
+						if(sumSoFar>targetSum){return}
+						if(depth==skipNum){
+							if(depth==maxDepth){return true}else{depth++}
+						}
+						//console.log(depth)
+						//console.log(maxDepth)
+						//console.log(superComb)
+						//console.log(skipNum)
+						
+						for(let i=0;i<unknownSums[depth].Sums.length;i++){
+							nSC=[...superComb]
+							nSC[depth]=i
+							if(depth==maxDepth||(depth+1==maxDepth&&skipNum==maxDepth)){ //final depth layer
+								//console.log("final depth")
+								//console.log(sumSoFar+unknownSums[depth].Sums[i])
+								if(sumSoFar+unknownSums[depth].Sums[i]==forcedsum){ //sum matches :D
+									//console.log("met sum")
+									for(let j=0;j<=maxDepth;j++){
+										validCombs[j][nSC[j]]=true
+									}
+									return true
+								}
+							}else{ //iterate further
+								if(comboSum(sumSoFar+unknownSums[depth].Sums[i],depth+1,maxDepth,nSC,skipNum)){return true}
+							}
+						}
+					}
+					
+					
+					//maxUnknownCages=Grid.CombinationDepth+1
+					for(let maxUnknownCages=1;maxUnknownCages<=Grid.CombinationDepth+1;maxUnknownCages++){
+						if(!batchmode){console.log("region sums of depth "+maxUnknownCages)}
+						for(let n=1;n<=gridDimension;n++){ //this is the size of the region slice
+							targetSum=regionSum*n
+							targetParity=targetSum%2
+							for(let dir=0;dir<=1;dir++){
+								cdir=directions[dir]
+								if(n==gridDimension&&dir==1){break} //don't redo the full-puzzle sum
+								for(let i=0;i<=gridDimension-n;i++){ //left/top col/row to start on
+									//console.log("=============")
+									//console.log(Grid[cdir][i])
+									if(Grid.RegionSliceData[cdir][i][n]=="Compute"){
+										Grid.RegionSliceData[cdir][i][n]={}
+										slicecages={}
+										slicecells={}
+										for(let j=0;j<n;j++){ //per region in slice
+											for(let k=0;k<gridDimension;k++){ //per cell in region
+												slicecages[Grid.Cells[Grid[cdir][i+j][k]].Cage]=true
+												slicecells[Grid[cdir][i+j][k]]=true
+											}
+										}
+										//console.log(slicecages)
+										//console.log(slicecells)
+										slicecages=Object.keys(slicecages)
+										contained=[]
+										overlap=[]
+										//check which cages are entirely contained within this slice and which are overlapping into other slices
+										for(let j=0;j<slicecages.length;j++){
+											innerCells=[]
+											innerKey=0
+											iscontained=true
+											for(let k=0;k<Grid.Cages[slicecages[j]].Cells.length;k++){
+												innerKey*=2
+												if(!slicecells[Grid.Cages[slicecages[j]].Cells[k]]){
+													iscontained=false
+												}else{
+													innerCells[innerCells.length]=k
+													innerKey++
+												}
+											}
+											if(iscontained){
+												contained[contained.length]=slicecages[j]
+											}else{
+												overlap[overlap.length]={Cage:slicecages[j],innerCells:innerCells,Key:innerKey}
+											}
+										}
+										
+										Grid.RegionSliceData[cdir][i][n].SliceCages=slicecages
+										Grid.RegionSliceData[cdir][i][n].SliceCells=slicecells
+										Grid.RegionSliceData[cdir][i][n].Contained=contained
+										Grid.RegionSliceData[cdir][i][n].Overlap=overlap
+									}else{ //retrieve cached data, this never has to be computed again, as far as I can tell
+										//skip if all sums are known
+										if(Grid.RegionSliceData[cdir][i][n].Complete){
+											continue
+										}
+										slicecages=Grid.RegionSliceData[cdir][i][n].SliceCages
+										slicecells=Grid.RegionSliceData[cdir][i][n].SliceCells
+										contained=Grid.RegionSliceData[cdir][i][n].Contained
+										overlap=Grid.RegionSliceData[cdir][i][n].Overlap
+									}
+									//console.log(contained)
+									//console.log(overlap)
+									//console.log(overlap.length+" overlapping cage(s)")
+									
+									unknownSums=[]
+									sumOfKnowns=0
+									unknownParity=[]
+									sumOfParity=0
+									for(let j=0;j<contained.length;j++){
+										if(Grid.Cages[contained[j]].Sum.length==1){
+											sumOfKnowns+=Number(Grid.Cages[contained[j]].Sum[0])
+										}else{
+											unknownSums[unknownSums.length]={Cage:contained[j],Sums:Grid.Cages[contained[j]].Sum}
+										}
+										if(Grid.Cages[contained[j]].Parity==2){
+											unknownParity[unknownParity.length]={Cage:contained[j]}
+										}else{
+											sumOfParity+=Number(Grid.Cages[contained[j]].Parity)
+										}
+									}
+									sumOfParity=sumOfParity%2
+									//console.log(unknownSums)
+									//console.log("sum of known: "+sumOfKnowns)
+									//console.log(unknownParity)
+									//console.log(sumOfParity)
+									//see what we can find out about the overlapping cages
+									for(let j=0;j<overlap.length;j++){
+										subRegionSums={}
+										if(Grid.Cages[overlap[j].Cage].OverlapSums[overlap[j].Key]){ //possible sums are cached
+											subRegionSums=Grid.Cages[overlap[j].Cage].OverlapSums[overlap[j].Key]
+										}else{ //calculate now
+											curc=Grid.Cages[overlap[j].Cage]
+											for(let k=0;k<curc.Combinations.length;k++){
+												curSum=0
+												for(let l=0;l<overlap[j].innerCells.length;l++){
+													curSum+=curc.Combinations[k][overlap[j].innerCells[l]]
+												}
+												subRegionSums[curSum]=true
+											}
+											subRegionSums=Object.keys(subRegionSums)
+											Grid.Cages[overlap[j].Cage].OverlapSums[overlap[j].Key]=subRegionSums
+										}
+										//console.log(subRegionSums)
+										if(subRegionSums.length==1){ //sum known
+											sumOfKnowns+=Number(subRegionSums[0])
+											sumOfParity+=subRegionSums[0]%2
+										}else{
+											unknownSums[unknownSums.length]={Cage:overlap[j].Cage,Sums:subRegionSums,overlap:true,innerCells:overlap[j].innerCells} //errr same format as the other unknown cages, but mark that it is a sub-cage
+											curPar=subRegionSums[0]%2
+											for(let k=1;k<subRegionSums.length;k++){ //parity
+												if(curPar!=subRegionSums[k]%2){
+													curPar=2
+													break
+												}
+											}
+											if(curPar==2){
+												unknownParity[unknownParity.length]={Cage:overlap[j].Cage,overlap:true,innerCells:overlap[j].innerCells}
+											}else{
+												sumOfParity+=Number(curPar)
+											}
+										}
+									}
+									sumOfParity=sumOfParity%2
+									//console.log(unknownSums)
+									//console.log("sum of known: "+sumOfKnowns)
+									//console.log(unknownParity)
+									//console.log(sumOfParity)
+									
+									//sum
+									if(unknownSums.length==0){ //all known
+										Grid.RegionSliceData[cdir][i][n].Complete=true
+										continue;
+									}else if(unknownSums.length==1){ //we can force this cage's sum to be the remainder
+										forcedsum=targetSum-sumOfKnowns
+										let newcombs=[]
+										let cc=Grid.Cages[unknownSums[0].Cage]
+										let oldlengths=[cc.Combinations.length]
+										if(unknownSums[0].overlap){
+											//console.log("forcing sum of "+forcedsum+" in cage "+unknownSums[0].Cage+" inner cells: "+pr(unknownSums[0].innerCells))
+											for(let j=0;j<cc.Combinations.length;j++){
+												curc=cc.Combinations[j]
+												let cursum=0
+												for(let k=0;k<unknownSums[0].innerCells.length;k++){
+													cursum+=curc[unknownSums[0].innerCells[k]]
+												}
+												if(cursum==forcedsum){
+													newcombs[newcombs.length]=curc
+												}
+											}
+										}else{
+											//console.log("forcing sum of "+forcedsum+" in cage "+unknownSums[0].Cage)
+											for(let j=0;j<cc.Combinations.length;j++){
+												let curc=cc.Combinations[j]
+												if(curc.reduce((a, b) => a + b, 0)==forcedsum){
+													newcombs[newcombs.length]=curc
+												}
+											}
+										}
+										//console.log(cc.Combinations)
+										//console.log(newcombs)
+										cc.Combinations=newcombs
+										let fr=cdir
+										if(n==1){fr=fr.substring(0,3)}
+										fr+=" "+(i+1)
+										for(let j=1;j<n;j++){
+											fr+=", "+(j+i+1)
+										}
+										if(n==gridDimension){fr="Grid"}
+										Grid.RegionSliceData[cdir][i][n].Complete=true
+										return {Locations:cc.Cells,Technique:"Region sum",Size:n,DoF:1,Cages:unknownSums,OldLengths:oldlengths,Regions:fr,NewSums:[forcedsum]}
+									}else{ //more than 1, we can force their sums too
+									
+										//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+										//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+										forcedsum=targetSum-sumOfKnowns
+										//console.log("target sum is: "+forcedsum)
+										if(unknownSums.length<=maxUnknownCages){
+											//console.log(slicecells)
+											//console.log(unknownSums)
+											validCombs=[]
+											for(let j=0;j<unknownSums.length;j++){ //build validCombs
+												validCombs[j]={}
+												for(let k=0;k<unknownSums[j].Sums.length;k++){
+													unknownSums[j].Sums[k]=Number(unknownSums[j].Sums[k])
+													validCombs[j][k]=false
+												}
+											}
+											for(let j=0;j<unknownSums.length;j++){ //per unknown cage
+												for(let c=0;c<unknownSums[j].Sums.length;c++){ //per combination
+													if(validCombs[j][c]){continue} //already known to be valid
+													curc=unknownSums[j].Sums[c]
+													//console.log(curc)
+													iSC=[]
+													iSC[j]=c
+													let fdff=comboSum(curc,0,unknownSums.length-1,iSC,j)
+													//if(comboSum(curc,0,unknownSums.length,iSC,j)){
+													if(fdff){
+														validCombs[j][c]=true
+													}
+													//console.log(fdff)
+													//console.log("validcombs")
+													//console.log(JSON.stringify(validCombs))
+												}
+											}
+											//console.log("FINAL validcombs")
+											//console.log(JSON.stringify(validCombs))
+											elims=false
+											for(let j=0;j<validCombs.length;j++){
+												if(!Object.values(validCombs[j]).reduce((a, b) => a && b, true)){
+													if(!batchmode){console.log("eliminations!!")
+													console.log(unknownSums)
+													console.log(JSON.stringify(validCombs))}
+													elims=true
+													break
+												}
+											}
+											if(elims){
+												elims=[]
+												let elimcells=[]
+												let oldlengths=[]
+												let cccccsum
+												for(let k=0;k<validCombs.length;k++){
+													if(Object.values(validCombs[k]).reduce((a, b) => a && b, true)){continue} //nothing to remove
+													let ccage=Grid.Cages[unknownSums[k].Cage]
+													if(unknownSums[k].innerCells===undefined){ //this cage isn't overlapping so it never had this initialised oops
+														unknownSums[k].innerCells=[...Array(ccage.Cells.length).keys()]
+													}
+													elims[elims.length]=unknownSums[k].Cage
+													oldlengths[oldlengths.length]=ccage.Combinations.length
+													for(let c=0;c<ccage.Cells.length;c++){
+														elimcells[elimcells.length]=ccage.Cells[c]
+													}
+													let sumlookups={}
+													for(let c=0;c<unknownSums[k].Sums.length;c++){
+														sumlookups[unknownSums[k].Sums[c]]=c
+													}
+													//console.log(unknownSums[k].Sums)
+													//console.log(sumlookups)
+													let ncombs=[]
+													for(let c=0;c<ccage.Combinations.length;c++){ //for each combination
+														//sum inner cells
+														cccccsum=0
+														for(let l=0;l<unknownSums[k].innerCells.length;l++){
+															cccccsum+=ccage.Combinations[c][unknownSums[k].innerCells[l]]
+														}
+														//console.log(ccage.Combinations[c])
+														//console.log(cccccsum)
+														if(validCombs[k][sumlookups[cccccsum]]){
+															ncombs[ncombs.length]=ccage.Combinations[c]
+														}
+													}
+													//console.log(ccage.Combinations)
+													//console.log(ncombs)
+													ccage.Combinations = ncombs
+												}
+												let fr=cdir
+												if(n==1){fr=fr.substring(0,3)}
+												fr+=" "+(i+1)
+												for(let j=1;j<n;j++){
+													fr+=", "+(j+i+1)
+												}
+												if(n==gridDimension){fr="Grid"}
+												return {Locations:elimcells,Technique:"Region sum",Size:n,DoF:validCombs.length,Cages:unknownSums,OldLengths:oldlengths,Regions:fr,NewSums:[forcedsum],elimCages:elims}
+											}
+										}
+									}
+									
+									//parity
+									if(unknownParity.length==1){ //we can force this cage's parity to be the remainder; no need for length>1 yet
+										let forcedparity=Math.abs((targetParity-sumOfParity)%2)
+										let cc=Grid.Cages[unknownParity[0].Cage]
+										let oldlengths=[cc.Combinations.length]
+										let newcombs=[]
+										if(unknownParity[0].overlap){
+											if(!batchmode){console.log("forcing parity of "+forcedparity+" in cage "+unknownParity[0].Cage+" inner cells: "+pr(unknownParity[0].innerCells))}
+											for(let j=0;j<cc.Combinations.length;j++){
+												curc=cc.Combinations[j]
+												let cursum=0
+												for(let k=0;k<unknownParity[0].innerCells.length;k++){
+													cursum+=curc[unknownParity[0].innerCells[k]]
+												}
+												if(cursum%2==forcedparity){
+													newcombs[newcombs.length]=curc
+												}
+											}
+										}else{
+											if(!batchmode){console.log("forcing parity of "+forcedparity+" in cage "+unknownParity[0].Cage)}
+											for(let j=0;j<cc.Combinations.length;j++){
+												let curc=cc.Combinations[j]
+												if(curc.reduce((a, b) => a + b, 0)%2==forcedparity){
+													newcombs[newcombs.length]=curc
+												}
+											}
+										}
+										//console.log(cc.Combinations)
+										//console.log(newcombs)
+										cc.Combinations=newcombs
+										let fr=cdir
+										if(n==1){fr=fr.substring(0,3)}
+										fr+=" "+(i+1)
+										for(let j=1;j<n;j++){
+											fr+=", "+(j+i+1)
+										}
+										if(n==gridDimension){fr="Grid"}
+										return {Locations:cc.Cells,Technique:"Region parity",Size:n,DoF:1,Cages:unknownParity,OldLengths:oldlengths,Regions:fr,NewParity:[forcedparity]}
+									}
+								}
+							}
+						}
+					}
+					return false
+				}
+				
+				//cage combination techniques (brute force final resort)
+				let maxCageDepth=Options.maxCageDepth;
+				let highestDepthSoFar=1;
+				let lastUnsolvedCages=""   //JSON stringified
+				let lastCageTuples		   //cached cageTuples
+				let lastIteratorPosition=0 //last position in the unsolved cage tuples array, to skip to this value if the sorted array of unsolved cages is identical to before
+										   //(aka if the puzzle has not progressed much as a result of the previous step)
+				function cageCombinations(){
+					//keep vars within scope
+					let validCombs=[]
+					let relevantPeers={}
+					let cagesInUse=[]
+					let ccomb,ccell,conflict,npD,nsC
+					function combineCages(placedDigits,depth,maxDepth,superComb,skipNum){
+						if(depth==skipNum){
+							if(depth==maxDepth){return true}else{depth++}
+						}
+						//console.log("Entering depth "+depth)
+						//console.log(JSON.stringify(validCombs))
+						//console.log(cagesInUse[depth])
+						//console.log(placedDigits)
+						//console.log(depth, maxDepth,superComb,skipNum)
+						for(let i=0;i<cagesInUse[depth][1].length;i++){
+							ccomb=cagesInUse[depth][1][i]
+							//if(skipNum>depth&&!validCombs[depth][i]){continue} //this makes it slower, would require removing from the array straight up
+							conflict=false
+							//console.log(ccomb)
+							//if(depth>0){
+								for(let j=0;j<ccomb.length;j++){ //check if each digit in the combo can be placed
+									ccell=cagesInUse[depth][0][j]
+									if(relevantPeers[ccell]===undefined){continue} //skip if cell has no peers to check against
+									for(let k=0;k<relevantPeers[ccell].length;k++){ 
+										if(ccomb[j]==placedDigits[relevantPeers[ccell][k]]){
+											//console.log("conflict")
+											conflict=true
+											break
+										}
+									}
+									if(conflict){break}
+								}
+							//}
+							if(conflict){ //this combination cannot be used in conjunction with placedDigits
+								continue
+							}else{ //combination can be placed
+								nsC=[...superComb]
+								nsC[depth]=i
+								if(depth==maxDepth||(depth+1==maxDepth&&skipNum==maxDepth)){ //successful full assigment of combinations
+									//console.log("waow success")
+									//console.log(nsC)
+									for(let j=0;j<=maxDepth;j++){
+										//if(nsC[j]==undefined){continue}
+										//console.log(j)
+										//console.log(nsC[j])
+										validCombs[j][nsC[j]]=true
+									}
+									//console.log(JSON.stringify(validCombs))
+									return true
+								}else{ //iterate further
+									npD={...placedDigits}
+									for(let j=0;j<ccomb.length;j++){
+										npD[cagesInUse[depth][0][j]]=ccomb[j]
+									}
+									//console.log(npD)
+									if(combineCages(npD,depth+1,maxDepth,nsC,skipNum)){
+										return true
+									}
+								}
+							}
+						}
+						return false
+					}
+					
+					let unsolvedCages=[]
+					for(let i=0;i<Grid.Cages.length;i++){
+						if(Grid.Cages[i].Combinations.length>1){
+							unsolvedCages[unsolvedCages.length]=i
+						}
+					}
+					//console.log(unsolvedCages)
+					if(unsolvedCages.length<2){return false}
+					unsolvedCages.sort((a, b) => Grid.Cages[a].Combinations.length - Grid.Cages[b].Combinations.length) //probably better for performance to skip this, actually...
+					//let lUCSame=lastUnsolvedCages==JSON.stringify(unsolvedCages)
+					let lUCSame=lastUnsolvedCages==unsolvedCages.length
+					if(!lUCSame){
+						if(!batchmode){console.log("lastUnsolvedCages has changed")}
+						//console.log(lastUnsolvedCages)
+						//console.log(JSON.stringify(unsolvedCages))
+						//lastUnsolvedCages=JSON.stringify(unsolvedCages)
+						lastUnsolvedCages=unsolvedCages.length
+					}
+					
+					//console.log(unsolvedCages)
+					//start with just 2 cages for now
+					let cageTuples,ct,c1,orphan,noPeers,combResult,elims,lastFirstNum,initialAssignments,iSC,initialSkippedCombos,cagesToRevisit,gCDN
+					for(n=2;n<=Math.min(maxCageDepth,unsolvedCages.length);n++){
+						if(!batchmode){console.log("Comparing "+n+" cages")}
+						initialSkippedCombos=0
+						if(Grid.CombinationDepth==n/*&&lUCSame*/){ //resuming at highest depth
+							if(!batchmode){console.log("Starting at i="+lastIteratorPosition)}
+							initialSkippedCombos=lastIteratorPosition
+						}
+						if(Grid.CombinationDepth>n){
+							cagesToRevisit=[]
+							for(let i=0;i<unsolvedCages.length;i++){
+								if(Grid.Cages[unsolvedCages[i]].DepthCache<n){
+									cagesToRevisit[cagesToRevisit.length]=unsolvedCages[i]
+								}
+							}
+							//console.log(cagesToRevisit)
+							cageTuples=getTuplesFromArrayWithForced(unsolvedCages,cagesToRevisit,n)
+							//cageTuples=getTuplesFromArray(unsolvedCages,n)
+						}else{
+							if(lUCSame&&Grid.CombinationDepth==n){ //reuse cache!
+								cageTuples=lastCageTuples
+							}else{
+								cageTuples=getTuplesFromArray(unsolvedCages,n)
+								//console.log(cageTuples)
+								//remove graphs that are not connected
+								let reducedArray=[]
+								let linkedCages
+								for(let i=0;i<cageTuples.length;i++){
+									ct=cageTuples[i]
+									orphan=false
+									linkedCages=[ct[0]]
+									ct.shift()
+									for(let c1=0;c1<linkedCages.length;c1++){
+										for(let c2=0;c2<ct.length;c2++){
+											if(Grid.Cages[linkedCages[c1]].PeersHT[ct[c2]]){ //seen so move it to linkedCages
+												linkedCages[linkedCages.length]=ct[c2]
+												ct.splice(c2,1)
+												c2--
+											}
+										}
+									}
+									//console.log(linkedCages)
+									//console.log(ct)
+									
+									/*for(let j=0;j<n-1;j++){ //check all cages are seen by another cage (this was terrible!!!!)
+										noPeers=true
+										for(let k=j+1;k<n;k++){
+											if(Grid.Cages[ct[j]].PeersHT[ct[k]]){
+												noPeers=false
+												break
+											}
+										}
+										if(noPeers){
+											orphan=true
+										}
+									}*/
+									if(ct.length>0){continue}
+									reducedArray[reducedArray.length]=linkedCages
+								}
+								cageTuples=reducedArray
+								lastCageTuples=cageTuples
+							}
+						}
+						if(Grid.CombinationDepth<n){
+							Grid.CombinationDepth=n
+							lastUnsolvedCages=0
+							lastIteratorPosition=0
+						}
+						//console.log(cageTuples)
+						if(cageTuples.length==0){
+							if(!batchmode){console.log("wow, empty tuple list")}
+							continue
+						}
+						lastFirstNum=cageTuples[0][0]
+						gCDN=Grid.CombinationDepth>n
+						for(let i=0;i<cageTuples.length;i++){ //set this to i=0 after testing
+							ct=cageTuples[(i+initialSkippedCombos)%cageTuples.length]
+							//console.log(ct)
+							/*doweskip=true
+							for(let j=0;j<n;j++){
+								if(Grid.Cages[ct[j]].DepthCache<n){
+									doweskip=false
+									break
+								}
+							}
+							if(doweskip){continue}*/
+							//console.log(ct)
+							//console.log(ct.reduce((a, b) => Math.min(a, Grid.Cages[b].DepthCache), 1000))
+							//console.log(n)
+							/*if(ct.reduce((a, b) => Math.min(a, Grid.Cages[b].DepthCache), 1000)>=n){   //no longer needed
+								//console.log(ct)
+								continue
+							}*/
+							/*if(lastFirstNum!=ct[0]){ //checked all tuples containing lastFirstNum at this depth
+								Grid.Cages[lastFirstNum].DepthCache=Math.max(Grid.Cages[lastFirstNum].DepthCache,n) //this too
+								lastFirstNum=ct[0]
+							}*/
+							if(gCDN){
+								orphan=false
+								for(let j=0;j<n-1;j++){ //check all cages are seen by another cage
+									noPeers=true
+									for(let k=j+1;k<n;k++){
+										if(Grid.Cages[ct[j]].PeersHT[ct[k]]){
+											noPeers=false
+											break
+										}
+									}
+									if(noPeers){
+										orphan=true
+									}
+								}
+								if(orphan){continue} //some cages are isolated so skip this tuple
+							}
+							
+							cagesInUse=[]
+							
+							//console.log(ct)
+							validCombs=[] //hash table of which cage combinations appear in the final set of combinations
+							for(let j=0;j<n;j++){
+								validCombs[j]={}
+								c1=Grid.Cages[ct[j]]
+								cagesInUse[j]=[c1.Cells,c1.Combinations]
+								for(let k=0;k<c1.Combinations.length;k++){
+									validCombs[j][k]=false
+								}
+							}
+							//console.log(validCombs)
+							relevantPeers={}
+							for(let j=0;j<n-1;j++){
+								c1=Grid.Cages[ct[j]]
+								for(let k=j+1;k<n;k++){ //for every pair of cages
+									c2=Grid.Cages[ct[k]]
+									for(let x=0;x<c1.Cells.length;x++){
+										if(Grid.Cells[c1.Cells[x]].Digit){continue} //solved cells can be safely ignored
+										for(let y=0;y<c2.Cells.length;y++){ //for every pair of cells across cages
+											if(Grid.Cells[c2.Cells[y]].Digit){continue}
+											if(Grid.Cells[c1.Cells[x]].PeersHT[c2.Cells[y]]){
+												if(relevantPeers[c1.Cells[x]]==undefined){
+													relevantPeers[c1.Cells[x]]=[]
+												}
+												relevantPeers[c1.Cells[x]][relevantPeers[c1.Cells[x]].length]=c2.Cells[y]
+												if(relevantPeers[c2.Cells[y]]==undefined){
+													relevantPeers[c2.Cells[y]]=[]
+												}
+												relevantPeers[c2.Cells[y]][relevantPeers[c2.Cells[y]].length]=c1.Cells[x]
+											}
+										}
+									}
+								}
+							}
+							//console.log(cagesInUse)
+							//console.log(relevantPeers)
+							for(let j=0;j<n;j++){ //per cage
+								//console.log(ct[j])
+								for(let c=0;c<cagesInUse[j][1].length;c++){ //per combination
+									if(validCombs[j][c]){continue} //already known to be valid
+									c1=cagesInUse[j][1][c]
+									//console.log(c1)
+									initialAssignments={}
+									for(let d=0;d<c1.length;d++){
+										initialAssignments[cagesInUse[j][0][d]]=c1[d]
+									}
+									iSC=[]
+									iSC[j]=c
+									//console.log(initialAssignments)
+									if(combineCages(initialAssignments,0,n-1,iSC,j)){
+										validCombs[j][c]=true
+									}
+									//console.log(fdff)
+									//console.log(JSON.stringify(validCombs))
+								}
+							}
+							//console.log(combResult)
+							//console.log(JSON.stringify(validCombs))
+							elims=false
+							for(let j=0;j<n;j++){
+								if(!Object.values(validCombs[j]).reduce((a, b) => a && b, true)){
+									if(!batchmode){console.log("eliminations!!")}
+									//console.log(ct)
+									//console.log(JSON.stringify(validCombs))
+									elims=true
+									break
+								}
+							}
+							if(elims){ //handle elims
+								elims=[]
+								let elimcells=[]
+								let oldlengths=[]
+								for(let k=0;k<n;k++){
+									if(Object.values(validCombs[k]).reduce((a, b) => a && b, true)){continue}
+									let ccage=Grid.Cages[ct[k]]
+									elims[elims.length]=ct[k]
+									oldlengths[oldlengths.length]=ccage.Combinations.length
+									for(let c=0;c<ccage.Cells.length;c++){
+										elimcells[elimcells.length]=ccage.Cells[c]
+									}
+									let ncombs=[]
+									for(let c=0;c<ccage.Combinations.length;c++){
+										if(validCombs[k][c]){
+											ncombs[ncombs.length]=ccage.Combinations[c]
+										}
+									}
+									ccage.Combinations = ncombs
+								}
+								if(Grid.CombinationDepth==n){
+									lastIteratorPosition=(i+initialSkippedCombos)%cageTuples.length
+								}
+								return {Locations:elimcells,Technique:"Cage combinations",Size:n,Cages:elims,OldLengths:oldlengths,AllCages:ct}
+							}
+							//return false //exit after 1 for testing
+						}
+						for(let j=0;j<unsolvedCages.length;j++){
+							Grid.Cages[unsolvedCages[j]].DepthCache=Math.max(Grid.Cages[unsolvedCages[j]].DepthCache,n)
+						}
+					}
+					return false
+				}
+				
+				function latinSquareSolver(){
+					if(Options.HiddenSingle){
+						let hs=hiddenSingle()
+						if(hs){
+							//console.log("there is one")
+							//console.log(hs)
+							solvelog[solvelog.length] = {Explanation:"Hidden single: "+hs.Digits[0]+" in "+hs.Locations[0],
+								Difficulty:1,
+								Time:Date.now()-t}
+							let hscell=Grid.Cells[hs.Locations[0]]
+							let dig=hs.Digits[0]
+							hscell.Candidates=[dig]
+							hscell.CandidatesHT={}
+							hscell.CandidatesHT[dig]=true
+							//handleNakedSingle(hscell)
+							return hs
+						}
+					}
+					if(Options.CageLineReduction){
+						let clr=cageLineReduction()
+						if(clr){
+							//console.log("cage-line reduction found")
+							//console.log(clr)
+							if(clr.Technique=="Claiming BLR"){
+								solvelog[solvelog.length]={Explanation:"Claiming candidates: cage "+clr.Cage+" must contain "+clr.Digits[0]+" in "+pr(clr.Locations)+": from "+clr.OldLength+" combinations to "+Grid.Cages[clr.Cage].Combinations.length,
+									Difficulty:1.5,
+									Time:Date.now()-t}
+								updateCageCandidates(Grid.Cages[clr.Cage])
+							}else{
+								solvelog[solvelog.length]={Explanation:"Pointing candidates: all combinations for cage "+clr.Cage+" contain "+clr.Points+"; eliminations in "+pr(clr.Locations),
+									Difficulty:1.5,
+									Time:Date.now()-t}
+									
+							}
+							return clr
+						}
+					}
+					if(Options.SubsetFish){
+						let hs2=hiddenSubsetAndFish()
+						if(hs2){
+							if(hs2.Technique=="Hidden Subset"){
+								//console.log("hidden subset found :D")
+								//console.log(hs2)
+								let tupstring=tupleSizes[hs2.Digits.length]
+								if(hs2.Digits.length>10){
+									tupstring=hs2.Digits.length+"-tuple"
+								}
+								solvelog[solvelog.length] = {Explanation:"Hidden "+tupstring+": "+pr(hs2.Digits)+" in "+pr(hs2.Locations),
+									Difficulty:Math.min(1.8+hs2.Digits.length/10,2.9),
+									Time:Date.now()-t}
+							}else{ //fish
+								//console.log("fish found :D")
+								//console.log(hs2)
+								let fishstring=fishSizes[hs2.BaseSets.length]
+								if(hs2.BaseSets.length>10){
+									fishstring=hs2.BaseSets.length+"-fish"
+								}
+								let bsstring=pr(hs2.BaseSets)
+								if(hs2.Technique=="Fish - rows"){
+									bsstring="r"+bsstring
+								}else{
+									bsstring="c"+bsstring
+								}
+								solvelog[solvelog.length] = {Explanation:fishstring+": "+pr(hs2.Digits)+" in "+bsstring,
+									Difficulty:Math.min(1.8+hs2.BaseSets.length/10,2.9),
+									Time:Date.now()-t}
+							}
+							return hs2
+						}
+					}
+					return false
+				}
+				
+				//find easiest step
+				function hierarchicalSolver(){
+					if(Options.LatinSquare){
+						let ls = latinSquareSolver()
+						if(ls){
+							//console.log("latin square success")
+							//console.log(ls)
+							return ls
+						}
+					}
+					//region sum/parity and maybe later on product?
+					if(Options.RegionTotals){
+						//let rtt=Date.now()
+						let rt=regionTotalSolver()
+						if(rt){
+							//console.log(rt)
+							let slstring
+							if(rt.Technique=="Region sum"){
+								let diff=3
+								if(rt.Size>1){diff=3.1}
+								slstring="Region sum: "+rt.Regions+" must sum to "+(regionSum*rt.Size)+"; "
+								if(rt.Cages.length==1){
+									slstring+="cage "+rt.Cages[0].Cage+"'s cells within this region must sum to "+rt.NewSums[0]+"; reduced from "+rt.OldLengths[0]+" combinations to "+Grid.Cages[rt.Cages[0].Cage].Combinations.length
+								}else{
+									slstring+="cages "+rt.Cages[0].Cage
+									for(let i=1;i<rt.Cages.length;i++){
+										slstring+=", "+rt.Cages[i].Cage
+									}
+									slstring+="'s cells within this region must sum to "+pr(rt.NewSums)+"; cages "+pr(rt.elimCages)+" reduced from "+pr(rt.OldLengths)+" combinations to "
+									for(let i=0;i<rt.elimCages.length;i++){
+										if(i>0){slstring+=", "}
+										slstring+=Grid.Cages[rt.elimCages[i]].Combinations.length
+									}
+								}
+								solvelog[solvelog.length]={Explanation:slstring,
+									Difficulty:Math.min(3.9,diff-0.2+(rt.DoF*0.2)), //base difficulty = 3, multiple rows/columns adds 0.1, 0.2 added for each unknown sum cage involved
+									Time:Date.now()-t}
+								for(let i=0;i<rt.Cages.length;i++){
+									updateCageCandidates(Grid.Cages[rt.Cages[i].Cage])
+								}
+								return rt
+							}else{ //parity
+								let diff=3
+								if(rt.Size>1){diff=3.1}
+								slstring="Region parity: "+rt.Regions+" must sum to "+parityNames[(regionSum*rt.Size)%2]+" number; "
+								//if(rt.Cages.length==1){ //probably won't need more cases
+								slstring+="cage "+rt.Cages[0].Cage+"'s cells within this region must sum to "+parityNames[rt.NewParity[0]]+" number; reduced from "+rt.OldLengths[0]+" combinations to "+Grid.Cages[rt.Cages[0].Cage].Combinations.length
+								solvelog[solvelog.length]={Explanation:slstring,
+									Difficulty:diff,
+									Time:Date.now()-t}
+								updateCageCandidates(Grid.Cages[rt.Cages[0].Cage])
+								return rt
+							}
+						}
+						//console.log("Region total time taken: "+(Date.now()-rtt)/1000+" seconds")
+					}
+					if(Options.CageCombinations){
+						if(!batchmode){console.log("=== cage combinations started ===")}
+						let cc=cageCombinations()
+						if(!batchmode){console.log("=== cage combinations ended ===")}
+						if(cc){
+							//console.log(cc)
+							let slstring
+							if(cc.Cages.length==1){
+								slstring="Cage comparison: cages "+pr(cc.AllCages)+" interact such that cage "+pr(cc.Cages)+" has incongruous combinations; reduced from "+pr(cc.OldLengths)+" to "+Grid.Cages[cc.Cages[0]].Combinations.length+" combinations"
+							}else{
+								slstring="Cage comparison: cages "+pr(cc.AllCages)+" interact such that cages "+pr(cc.Cages)+" have incongruous combinations; reduced from "+pr(cc.OldLengths)+" to "
+								for(let i=0;i<cc.Cages.length;i++){
+									if(i>0){slstring+=", "}
+									slstring+=Grid.Cages[cc.Cages[i]].Combinations.length
+								}
+								slstring+=" combinations respectively"
+							}
+							solvelog[solvelog.length]={Explanation:slstring,
+								Difficulty:3.6+(cc.Size*0.2), //2 cages is difficulty=4, 0.2 added for each layer of recursion
+								Time:Date.now()-t}
+							for(let i=0;i<cc.Cages.length;i++){
+								updateCageCandidates(Grid.Cages[cc.Cages[i]])
+							}
+							return cc
+						}
+					}
+					return false
+				}
+				
+				let stepCounter=0
+				while(!checkSolved()){
+					if(stepCounter==maxsteps){break}
+					let hs=hierarchicalSolver() //get (and execute) current easiest step
+					if(hs){
+						if(!batchmode){console.log("------------ found step "+stepCounter)
+						console.log(hs)}
+						for(let i=0;i<hs.Locations.length;i++){ //these cells have had candidates removed so handle
+							if(!batchmode){console.log("handling "+hs.Locations[i])}
+							let curc=Grid.Cells[hs.Locations[i]]
+							updateCageCombinations(curc)
+							handleNakedSingle(curc)
+						}
+						//console.log(Grid)
+						stepCounter++
+						
+					}else{
+						if(!batchmode){console.log(":(")
+						console.log(Grid)}
+						if(!batchmode){
+							let solvelogstring = "FAILED SOLVE:\n0: "+solvelog[0].Explanation
+							for(let i=1;i<solvelog.length;i++){
+								solvelogstring+="\n"+i+": ("+sround(solvelog[i].Difficulty,2)+") "+solvelog[i].Explanation
+							}
+							document.getElementById("solvelog").innerHTML=solvelogstring
+						}
+						return false
+					}
+					
+					if(displayboard){ //update candidate display
+						updateCandidateDisplay()
+					}
+				}
+				
+				solverlock=checkSolved()
+				
+				if(!batchmode){
+					console.log(Date.now()-t)
+					console.log(Grid)
+					console.log(solvelog)
+					let solvelogstring = "0: "+solvelog[0].Explanation
+					for(let i=1;i<solvelog.length;i++){
+						solvelogstring+="\n"+i+": ("+sround(solvelog[i].Difficulty,2)+") "+solvelog[i].Explanation
+					}
+					document.getElementById("solvelog").innerHTML=solvelogstring
+				}
+				//grade puzzle
+				let maxdiff=0
+				let totdiff=0
+				for(let i=0;i<solvelog.length;i++){
+					maxdiff=Math.max(maxdiff,solvelog[i].Difficulty)
+					totdiff+=Number(solvelog[i].Difficulty)
+				}
+				maxdiff=Math.round(maxdiff*10)/10 //JS
+				totdiff=Math.round(totdiff*10)/10 //JS
+				if(!batchmode){
+					let diffstring="Max difficulty: "+maxdiff+"; total difficulty: "+totdiff+"\n\n"
+					document.getElementById("solvelog").innerHTML = diffstring+document.getElementById("solvelog").innerHTML
+				}
+				return [maxdiff,totdiff]
+			}
+			
+			function grabPuzzles(n=10){ //run this on tatham's site to grab puzzles lol
+				let tatt=Date.now()
+				let newp=document.getElementById("new")
+				let stringlink=document.getElementById("permalink-desc")
+				let grabbed=[]
+				for(let i=0;i<n;i++){
+					newp.click()
+					grabbed[grabbed.length]=stringlink.href.substring(stringlink.href.indexOf("#")+1)
+				}
+				console.log("Time elapsed: "+(Date.now()-tatt)/1000+"s")
+				return grabbed
+			}
+			
+		</script>
+	</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
